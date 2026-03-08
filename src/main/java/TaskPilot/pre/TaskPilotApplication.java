@@ -7,7 +7,9 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 public class TaskPilotApplication {
 
 	public static void main(String[] args) {
-		SpringApplication.run(TaskPilotApplication.class, args);
+        User user1 = new User(1L, "hh", "jg", "jgf");
+        user1.createTask(1L, 2L, "kjhgf", "lkjhgf");
+        SpringApplication.run(TaskPilotApplication.class, args);
 	}
 
 }
