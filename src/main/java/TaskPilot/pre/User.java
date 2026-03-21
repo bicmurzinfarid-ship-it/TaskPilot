@@ -4,69 +4,32 @@ import java.util.*;
 
 public class User {
     private Long id;
-
     private String username;
     private String password;
     private String email;
 
-    List<Task> tasks;
-
+    public User() {}
     public User(Long id, String username, String password, String email){
         this.id = id;
         this.username = username;
         this.password = password;
         this.email = email;
-        this.tasks = new ArrayList<>();
     }
+    public Long getId(){return id;}
+    public String getUsername(){return username;}
+    public String getPassword(){return password;}
+    public String getEmail(){return email;}
 
-    public void createTask(Long taskID, Long assigneeID, String title, String description){
-        tasks.add(new Task(taskID, id, assigneeID, title, description));
+    public void setId(Long id) {
+        this.id = id;
     }
-
-    public void viewTasks(){
-        for(Task task: tasks){
-            System.out.println("Id task: " + task.getId() +
-                               ". Id creator task: " + task.getCreatorID() +
-                               ". Id assignee task: " + task.getAssigneeId() +
-                               ". Title task: " + task.getTitle() +
-                               ". Description task: " + task.getDescription() +
-                               ". Status task: " + task.getStatus());
-        }
+    public void setUsername(String username) {
+        this.username = username;
     }
-
-    public void changeTaskAssigneeById(Long taskId, Long assigneeId){
-        for(Task task: tasks) {
-            if (task.getId().equals(taskId)) {
-                task.setAssigneeId(assigneeId);
-                break;
-            }
-        }
+    public void setPassword(String password){
+        this.password = password;
     }
-
-    public void changeTaskDescriptionById(Long taskId, String description){
-        for(Task task: tasks) {
-            if (task.getId().equals(taskId)) {
-                task.setDescription(description);
-                break;
-            }
-        }
-    }
-
-    public void changeTaskStatusById(Long taskId, TaskStatus status){
-        for(Task task: tasks){
-            if (task.getId().equals(taskId)){
-                task.setStatus(status);
-                break;
-            }
-        }
-    }
-
-    public void deleteTaskById(Long taskId){
-        for(Task task: tasks){
-            if (task.getId().equals(taskId)) {
-                tasks.remove(task);
-                break;
-            }
-        }
+    public void setEmail(String email) {
+        this.email = email;
     }
 }
