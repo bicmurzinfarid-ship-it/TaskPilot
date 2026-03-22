@@ -19,13 +19,18 @@
     </properties>
 
     <dependencies>
-        <!-- JPA - закомментирован, раскомментируйте когда будет нужна БД -->
-        <!--
+        <!-- JPA -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-jpa</artifactId>
         </dependency>
-        -->
+
+        <!-- H2 - встроенная БД для разработки -->
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <scope>runtime</scope>
+        </dependency>
 
         <!-- Security - закомментирован -->
         <!--
@@ -46,15 +51,6 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
-
-        <!-- PostgreSQL - закомментирован пока нет JPA -->
-        <!--
-        <dependency>
-            <groupId>org.postgresql</groupId>
-            <artifactId>postgresql</artifactId>
-            <scope>runtime</scope>
-        </dependency>
-        -->
 
         <!-- Lombok -->
         <dependency>

@@ -1,14 +1,43 @@
 package TaskPilot.pre;
 
+import jakarta.persistence.*;
+import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
+
+/**
+ * Матрица Эйзенхауэра: срочность вычисляется по дедлайну, важность — по шкале 1-5.
+ * Расчёт квадранта: getEisenhowerQuadrant().
+ */
+@Entity
+@Table(name = "tasks")
 public class Task {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(name = "creator_id")
     private Long creatorId;
+
+    @Column(name = "assignee_id")
     private Long assigneeId;
 
+    @Column(nullable = false)
     private String title;
+
+    @Column(length = 2000)
     private String description;
-    private TaskStatus status;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private TaskStatus status = TaskStatus.WAITING;
+
+    /** Дедлайн задачи. Срочность вычисляется по времени до дедлайна. */
+    private LocalDateTime deadline;
+
+    /** Важность 1-5 (5 = максимально важно) */
+    private Integer importance;
+
+    private static final int HIGH_THRESHOLD = 4;
 
     public Task() {}
     public Task(Long id, Long creatorID, Long assigneeId, String title, String description){
@@ -37,4 +66,43 @@ public class Task {
 
     public TaskStatus getStatus() { return status; }
     public void setStatus(TaskStatus status) { this.status = status; }
+
+    public LocalDateTime getDeadline() { return deadline; }
+    public void setDeadline(LocalDateTime deadline) { this.deadline = deadline; }
+
+    public Integer getImportance() { return importance; }
+    public void setImportance(Integer importance) { this.importance = importance; }
+
+    /**
+     * Вычисляет срочность 1-5 по дедлайну относительно текущего времени.
+     * Просрочено / < 24ч → 5; 1-3 дня → 4; 3-7 дней → 3; 1-4 нед → 2; > 4 нед → 1.
+     */
+    @Transient
+    public Integer getUrgency() {
+        if (deadline == null) return null;
+        long hours = ChronoUnit.HOURS.between(LocalDateTime.now(), deadline);
+        if (hours < 0) return 5;           // просрочено
+        if (hours < 24) return 5;
+        if (hours < 72) return 4;          // 1-3 дня
+        if (hours < 168) return 3;         // 3-7 дней
+        if (hours < 672) return 2;         // 1-4 недели
+        return 1;
+    }
+
+    /**
+     * Вычисляет квадрант матрицы Эйзенхауэра по deadline и importance.
+     */
+    @Transient
+    public EisenhowerQuadrant getEisenhowerQuadrant() {
+        Integer urgency = getUrgency();
+        if (urgency == null || importance == null) {
+            return null;
+        }
+        boolean isUrgent = urgency >= HIGH_THRESHOLD;
+        boolean isImportant = importance >= HIGH_THRESHOLD;
+        if (isUrgent && isImportant) return EisenhowerQuadrant.URGENT_IMPORTANT;
+        if (!isUrgent && isImportant) return EisenhowerQuadrant.NOT_URGENT_IMPORTANT;
+        if (isUrgent && !isImportant) return EisenhowerQuadrant.URGENT_NOT_IMPORTANT;
+        return EisenhowerQuadrant.NOT_URGENT_NOT_IMPORTANT;
+    }
 }
