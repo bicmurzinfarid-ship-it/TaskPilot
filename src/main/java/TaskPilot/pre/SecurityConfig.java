@@ -50,10 +50,9 @@ public class SecurityConfig {
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
+                        .requestMatchers("/h2-console", "/h2-console/**").permitAll() // H2 консоль
                         .requestMatchers("/auth/login").permitAll()     // вход — без токена
                         .requestMatchers("/user").permitAll()           // регистрация — без токена
-                        .requestMatchers("/h2-console/**").permitAll()  // H2 консоль для разработки
-                        // /project/**, /task/**, /user/** — требуют JWT (попадают в anyRequest)
                         .anyRequest().authenticated()
                 )
                 .authenticationProvider(authenticationProvider())

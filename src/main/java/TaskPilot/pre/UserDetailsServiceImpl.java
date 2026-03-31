@@ -26,7 +26,10 @@ public class UserDetailsServiceImpl implements UserDetailsService {
 
     @Override
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
-        User user = userRepository.findByUsername(username)
+        String normalized = username == null ? "" : username.trim();
+
+        User user = userRepository.findByUsernameIgnoreCase(normalized)
+                .or(() -> userRepository.findByEmailIgnoreCase(normalized))
                 .orElseThrow(() -> new UsernameNotFoundException("User not found: " + username));
 
         // org.springframework.security.core.userdetails.User — это стандартный

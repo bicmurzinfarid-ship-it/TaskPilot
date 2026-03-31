@@ -4,6 +4,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Locale;
 
 @Service
 public class UserService {
@@ -38,16 +39,22 @@ public class UserService {
             throw new IllegalArgumentException("Password shouldn't be empty");
         }
 
-        // Проверяем уникальность
-        if (userRepository.existsByEmail(user.getEmail())) {
+        String normalizedUsername = user.getUsername().trim();
+        String normalizedEmail = user.getEmail().trim().toLowerCase(Locale.ROOT);
+
+        // Проверяем уникальность без учёта регистра
+        if (userRepository.existsByEmailIgnoreCase(normalizedEmail)) {
             throw new IllegalArgumentException("Email already taken");
         }
-        if (userRepository.existsByUsername(user.getUsername())) {
+        if (userRepository.existsByUsernameIgnoreCase(normalizedUsername)) {
             throw new IllegalArgumentException("Username already taken");
         }
 
+        user.setUsername(normalizedUsername);
+        user.setEmail(normalizedEmail);
+
         // Хэшируем пароль перед сохранением
-        user.setPassword(passwordEncoder.encode(user.getPassword()));
+        user.setPassword(passwordEncoder.encode(user.getPassword().trim()));
 
         return userRepository.save(user);
     }
