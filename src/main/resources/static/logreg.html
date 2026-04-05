@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Вход и регистрация</title>
+    <style>
+        body { font-family: Arial; margin: 50px; }
+        .container { max-width: 400px; margin: 0 auto; }
+        .form-group { margin-bottom: 15px; }
+        input { width: 100%; padding: 8px; margin-top: 5px; }
+        button { padding: 10px 20px; margin-top: 10px; cursor: pointer; }
+        .error { color: red; margin-top: 10px; }
+        .success { color: green; margin-top: 10px; }
+        .tab { padding: 10px 20px; cursor: pointer; background: #f0f0f0; border: none; }
+        .tab.active { background: #007bff; color: white; }
+        .form { display: none; margin-top: 20px; }
+        .form.active { display: block; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h2>Добро пожаловать</h2>
+
+    <div>
+        <button class="tab active" onclick="showTab('login')">Вход</button>
+        <button class="tab" onclick="showTab('register')">Регистрация</button>
+    </div>
+
+    <!-- Форма входа -->
+    <div id="loginForm" class="form active">
+        <div class="form-group">
+            <label>Имя пользователя или Email</label>
+            <input type="text" id="loginUsername" placeholder="username или email">
+        </div>
+        <div class="form-group">
+            <label>Пароль</label>
+            <input type="password" id="loginPassword" placeholder="пароль">
+        </div>
+        <button onclick="login()">Войти</button>
+        <div id="loginError" class="error"></div>
+    </div>
+
+    <!-- Форма регистрации -->
+    <div id="registerForm" class="form">
+        <div class="form-group">
+            <label>Имя пользователя</label>
+            <input type="text" id="regUsername" placeholder="username">
+        </div>
+        <div class="form-group">
+            <label>Email</label>
+            <input type="email" id="regEmail" placeholder="email@example.com">
+        </div>
+        <div class="form-group">
+            <label>Пароль</label>
+            <input type="password" id="regPassword" placeholder="пароль">
+        </div>
+        <button onclick="register()">Зарегистрироваться</button>
+        <div id="regError" class="error"></div>
+        <div id="regSuccess" class="success"></div>
+    </div>
+</div>
+
+<script>
+    function showTab(tab) {
+        document.querySelectorAll('.tab').forEach(btn => btn.classList.remove('active'));
+        document.querySelectorAll('.form').forEach(form => form.classList.remove('active'));
+
+        if (tab === 'login') {
+            document.querySelector('.tab').classList.add('active');
+            document.getElementById('loginForm').classList.add('active');
+        } else {
+            document.querySelectorAll('.tab')[1].classList.add('active');
+            document.getElementById('registerForm').classList.add('active');
+        }
+    }
+
+    async function login() {
+        const username = document.getElementById('loginUsername').value.trim();
+        const password = document.getElementById('loginPassword').value.trim();
+        const errorDiv = document.getElementById('loginError');
+
+        if (!username || !password) {
+            errorDiv.innerText = 'Заполните все поля';
+            return;
+        }
+
+        try {
+            const response = await fetch('/auth/login', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({username, password})
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                localStorage.setItem('authToken', data.token);
+                localStorage.setItem('currentUser', username);
+                window.location.href = '/chat-test.html';
+            } else {
+                const error = await response.json();
+                errorDiv.innerText = error.error || 'Ошибка входа';
+            }
+        } catch (e) {
+            errorDiv.innerText = 'Ошибка соединения с сервером';
+        }
+    }
+
+    async function register() {
+        const username = document.getElementById('regUsername').value.trim();
+        const email = document.getElementById('regEmail').value.trim();
+        const password = document.getElementById('regPassword').value.trim();
+        const errorDiv = document.getElementById('regError');
+        const successDiv = document.getElementById('regSuccess');
+
+        if (!username || !email || !password) {
+            errorDiv.innerText = 'Заполните все поля';
+            return;
+        }
+
+        try {
+            const response = await fetch('/user', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({username, email, password})
+            });
+
+            if (response.ok) {
+                successDiv.innerText = 'Регистрация успешна! Теперь войдите.';
+                errorDiv.innerText = '';
+                setTimeout(() => showTab('login'), 1500);
+            } else {
+                const error = await response.json();
+                errorDiv.innerText = error.error || 'Ошибка регистрации';
+                successDiv.innerText = '';
+            }
+        } catch (e) {
+            errorDiv.innerText = 'Ошибка соединения с сервером';
+        }
+    }
+</script>
+</body>
+</html>
