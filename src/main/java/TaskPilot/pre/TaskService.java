@@ -25,6 +25,19 @@ public class TaskService {
                 .orElseThrow(() -> new RuntimeException("Not found"));
     }
 
+    public void deleteTask(Long id) {
+        if (!taskRepository.existsById(id)) {
+            throw new RuntimeException("Not found");
+        }
+        taskRepository.deleteById(id);
+    }
+
+    public Task updateStatus(Long id, TaskStatus status) {
+        Task task = findTaskById(id);
+        task.setStatus(status);
+        return taskRepository.save(task);
+    }
+
     public Task createTask(Task task) {
         if (task.getId() != null) {
             throw new IllegalArgumentException("Id should be empty");
