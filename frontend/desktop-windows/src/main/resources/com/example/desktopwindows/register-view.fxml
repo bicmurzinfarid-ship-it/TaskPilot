@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<VBox xmlns:fx="http://javafx.com/fxml"
+      fx:controller="com.example.desktopwindows.RegisterController"
+      spacing="10"
+      style="-fx-padding: 40; -fx-alignment: center;">
+
+    <Label text="Логин:"/>
+    <TextField fx:id="usernameField" promptText="Введите логин"/>
+    <Label text="Email:"/>
+    <TextField fx:id="emailField" promptText = "Введите email"/>
+    <Label text="Пароль:"/>
+    <PasswordField fx:id="passwordField" promptText="Введите пароль"/>
+
+    <Label fx:id="errorLabel" text="" style="-fx-text-fill: red;"/>
+
+    <Button text="Назад" onAction="#onBackClick"/>
+    <Button text="Зарегистрироваться" onAction="#onRegisterClick"/>
+
+</VBox>
