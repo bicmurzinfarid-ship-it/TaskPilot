@@ -6,32 +6,40 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
+
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 @Service
 public class ChatMessageService {
     @Autowired private ChatMessageRepository repository;
     @Autowired private ChatRoomService chatRoomService;
-    @Autowired private MongoOperations mongoOperations;
-
-    public ChatMessage save(ChatMessage chatMessage) {
-        repository.save(chatMessage);
-        return chatMessage;
+    public ChatMessageService(ChatMessageRepository repository, ChatRoomService chatRoomService){
+        this.repository = repository;
+        this.chatRoomService = chatRoomService;
     }
 
-    public List<ChatMessage> findChatMessages(String senderId, String recipientId) {
-        var chatId = chatRoomService.getChatId(senderId, recipientId, false);
-
-        var messages = chatId.map(cId -> repository.findByChatId(cId)).orElse(new ArrayList<>());
-
-        return messages;
+    public ChatMessage save(ChatMessage message) {
+        if (!chatRoomService.isRoomMember(message.getRoomId(), message.getSenderId())) {
+            throw new SecurityException("Нет доступа к этой комнате");
+        }
+        return repository.save(message);
     }
 
-    public ChatMessage findById(String id) {
-        return repository.findById(id)
-                .orElseThrow(() ->
-                        new IllegalArgumentException("can't find message (" + id + ")"));
+    public List<ChatMessage> findByRoomId(String roomId, Long userId){
+        if(!chatRoomService.isRoomMember(roomId, userId)){
+            throw new SecurityException("Нет доступа к этой комнате");
+        }
+        return repository.findByRoomId(roomId);
     }
 
+    public ChatMessage findById(String messageId){
+        Optional<ChatMessage> message = repository.findById(messageId);
+        if(!message.isPresent()){
+            throw new IllegalArgumentException("Нет сообщения с идентификатором " + messageId);
+        }
+        return message.get();
+    }
 }
