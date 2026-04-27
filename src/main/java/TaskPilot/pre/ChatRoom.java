@@ -7,8 +7,6 @@ import org.springframework.data.annotation.Id;
 import java.util.HashSet;
 import java.util.Set;
 
-
-@Builder
 @Document
 public class ChatRoom {
     @Id
@@ -16,7 +14,6 @@ public class ChatRoom {
     private String nameChat;
     private Long creatorId;
     private ChatRoomType type;
-    @Builder.Default
     private Set<Long> memberIds = new HashSet<>();
 
     public ChatRoom(){}
@@ -50,11 +47,11 @@ public class ChatRoom {
         this.creatorId = creatorId;
     }
 
-    public ChatRoomType gettype() {
+    public ChatRoomType getType() {
         return type;
     }
 
-    public void settype(ChatRoomType type) {
+    public void setType(ChatRoomType type) {
         this.type = type;
     }
 

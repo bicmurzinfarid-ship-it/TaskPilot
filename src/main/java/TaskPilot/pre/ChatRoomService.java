@@ -57,7 +57,7 @@ public class ChatRoomService {
     public ChatRoom addMemberToGroup(Long creatorId, String roomId, Long newMemberId){
         ChatRoom room = getRoom(roomId);
 
-        if(!room.gettypeRoom().equals(ChatRoomType.GROUP)){
+        if(!room.getType().equals(ChatRoomType.GROUP)){
             throw new IllegalArgumentException("Нельзя добавлять участников в приватный чат");
         }
         if(!room.canManageRoom(creatorId)){
@@ -73,7 +73,7 @@ public class ChatRoomService {
     public ChatRoom removeMemberToGroup(Long creatorId, String roomId, Long MemberId){
         ChatRoom room = getRoom(roomId);
 
-        if(!room.gettypeRoom().equals(ChatRoomType.GROUP)){
+        if(!room.getType().equals(ChatRoomType.GROUP)){
             throw new IllegalArgumentException("Нельзя удалять участников из приватного чата");
         }
         if(!room.canManageRoom(creatorId)){
