@@ -32,7 +32,20 @@ public class ChatMessageService {
         if(!chatRoomService.isRoomMember(roomId, userId)){
             throw new SecurityException("Нет доступа к этой комнате");
         }
-        return repository.findByRoomId(roomId);
+        List<ChatMessage> messages = repository.findByRoomId(roomId);
+
+        // Помечаем READ сообщения от других
+        List<ChatMessage> toUpdate = new ArrayList<>();
+        for (ChatMessage msg : messages) {
+            if (!msg.getSenderId().equals(userId) && msg.getStatus() != ChatMessageStatus.READ) {
+                msg.setStatus(ChatMessageStatus.READ);
+                toUpdate.add(msg);
+            }
+        }
+        if (!toUpdate.isEmpty()) {
+            repository.saveAll(toUpdate);
+        }
+        return messages;
     }
 
     public ChatMessage findById(String messageId){

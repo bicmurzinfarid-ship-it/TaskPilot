@@ -1,6 +1,5 @@
 package TaskPilot.pre;
 
-import lombok.Builder;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 
@@ -12,6 +11,7 @@ public class ChatMessage {
     private Long senderId;
     private String senderName;
     private String content;
+    private ChatMessageStatus status = ChatMessageStatus.SENT;
 
     public ChatMessage() {}
 
@@ -59,5 +59,13 @@ public class ChatMessage {
 
     public void setContent(String content) {
         this.content = content;
+    }
+
+    public ChatMessageStatus getStatus() {
+        return status;
+    }
+
+    public void setStatus(ChatMessageStatus status) {
+        this.status = status;
     }
 }
