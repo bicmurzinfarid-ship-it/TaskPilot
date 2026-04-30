@@ -63,6 +63,17 @@ public class ProjectController {
         return ResponseEntity.ok(projectService.getProject(id));
     }
 
+    // ─── Удаление проекта ────────────────────────────────────────────────────
+
+    /**
+     * Удалить проект (только создатель). Все задачи проекта удаляются тоже.
+     */
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteProject(@PathVariable Long id) {
+        projectService.deleteProject(id);
+        return ResponseEntity.noContent().build();
+    }
+
     // ─── Участники ────────────────────────────────────────────────────────────
 
     /**

@@ -190,6 +190,25 @@ public class ProjectService {
         return projectRepository.save(project);
     }
 
+    // ─── Удаление проекта ────────────────────────────────────────────────────
+
+    /**
+     * Удаляет проект вместе со всеми его задачами.
+     * Права: только создатель.
+     */
+    @Transactional
+    public void deleteProject(Long projectId) {
+        Project project = getProjectOrThrow(projectId);
+        User current = getCurrentUser();
+
+        if (!project.isCreator(current.getId())) {
+            throw new SecurityException("Только создатель может удалить проект");
+        }
+
+        taskRepository.deleteByProjectId(projectId);
+        projectRepository.delete(project);
+    }
+
     // ─── Задачи в проекте ─────────────────────────────────────────────────────
 
     /**
