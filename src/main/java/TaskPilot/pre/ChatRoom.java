@@ -12,8 +12,8 @@ public class ChatRoom {
     @Id
     private String id;
     private String nameChat;
-    private Long creatorId;
     private ChatRoomType type;
+    private Long creatorId;
     private Set<Long> memberIds = new HashSet<>();
 
     public ChatRoom(){}

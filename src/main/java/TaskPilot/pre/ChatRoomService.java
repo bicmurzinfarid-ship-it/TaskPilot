@@ -11,17 +11,16 @@ import java.util.Set;
 @Service
 public class ChatRoomService {
 
-    @Autowired
-    private ChatRoomRepository chatRoomRepository;
-    private UserRepository userRepository;
+    private final ChatRoomRepository chatRoomRepository;
+    private final UserRepository userRepository;
 
     public ChatRoomService(ChatRoomRepository chatRoomRepository, UserRepository userRepository){
         this.chatRoomRepository = chatRoomRepository;
         this.userRepository = userRepository;
     }
 
-    public ChatRoom getOrCreatePrivateChat(Long userId1, Long userId2){
-        Optional<ChatRoom> room = chatRoomRepository.findByTypeAndMemberIdsContainingAndMemberIdsContaining(
+    public ChatRoom getOrCreatePrivateChat(Long userId1, Long userId2, String name){
+        Optional<ChatRoom> room = chatRoomRepository.findPrivateChatByMembers(
                 ChatRoomType.PRIVATE, userId1, userId2);
         if(room.isPresent()){
             return room.get();
@@ -35,12 +34,13 @@ public class ChatRoomService {
         if (!user2.isPresent()){
             throw new IllegalArgumentException("Пользователь не найден: " + userId2);
         }
+        if (name == null || name.isBlank()){
+            throw new IllegalArgumentException("Название комнаты не может быть пустым");
+        }
         Set<Long> memberIds = new HashSet<>();
         memberIds.add(userId1);
         memberIds.add(userId2);
-        ChatRoom newRoom = new ChatRoom(
-                user1.get().getUsername() + " - " + userRepository.findById(userId2).get().getUsername(),
-                userId1, ChatRoomType.PRIVATE, memberIds);
+        ChatRoom newRoom = new ChatRoom(name, userId1, ChatRoomType.PRIVATE, memberIds);
         return chatRoomRepository.save(newRoom);
     }
 

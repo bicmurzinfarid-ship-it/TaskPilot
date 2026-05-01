@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.control.*?>
+
+<BorderPane xmlns:fx="http://javafx.com/fxml"
+            fx:controller="com.example.desktopwindows.CalendarController"
+            style="-fx-background-color: #F5F0EB;">
+
+    <top>
+        <HBox style="-fx-background-color: #FAA757; -fx-padding: 10;" alignment="CENTER" spacing="10">
+            <Button text="◀" onAction="#onNavHome"
+                    style="-fx-background-color: transparent; -fx-font-size: 16;"/>
+            <Label text="Календарь" style="-fx-font-size: 18; -fx-font-weight: bold;" HBox.hgrow="ALWAYS"/>
+            <TextField promptText="Поиск..." prefWidth="300"
+                       style="-fx-background-radius: 15; -fx-padding: 5 10;"/>
+        </HBox>
+    </top>
+
+    <left>
+        <VBox style="-fx-background-color: #FAA757; -fx-padding: 10; -fx-spacing: 15; -fx-min-width: 100;" alignment="TOP_CENTER">
+            <Button text="Главная" onAction="#onNavHome"
+                    style="-fx-background-color: transparent; -fx-font-size: 13; -fx-text-fill: #3D1A00;"/>
+            <Button text="Календарь" onAction="#onNavCalendar"
+                    style="-fx-background-color: transparent; -fx-font-size: 13; -fx-text-fill: #3D1A00; -fx-font-weight: bold;"/>
+            <Button text="Чаты" style="-fx-background-color: transparent; -fx-font-size: 13; -fx-text-fill: #3D1A00;"/>
+            <Button text="Настройки" style="-fx-background-color: transparent; -fx-font-size: 13; -fx-text-fill: #3D1A00;"/>
+        </VBox>
+    </left>
+
+    <center>
+        <VBox style="-fx-padding: 10; -fx-spacing: 8; -fx-background-color: #F5F0EB;">
+
+            <!-- Навигация по месяцам -->
+            <HBox alignment="CENTER" spacing="20" style="-fx-padding: 5;">
+                <Button text="◀" onAction="#onPrevMonth"
+                        style="-fx-background-color: transparent; -fx-font-size: 18;"/>
+                <Label fx:id="monthLabel" text="Апрель 2026"
+                       style="-fx-font-size: 18; -fx-font-weight: bold;" minWidth="180" alignment="CENTER"/>
+                <Button text="▶" onAction="#onNextMonth"
+                        style="-fx-background-color: transparent; -fx-font-size: 18;"/>
+            </HBox>
+
+            <!-- Заголовки дней недели -->
+            <GridPane fx:id="calendarGrid" hgap="2" vgap="2"
+                      style="-fx-padding: 5;" gridLinesVisible="false">
+            </GridPane>
+
+        </VBox>
+    </center>
+
+</BorderPane>

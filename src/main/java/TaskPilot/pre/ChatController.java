@@ -13,7 +13,7 @@ import java.security.Principal;
 import java.util.List;
 import java.util.Map;
 
-@Controller
+@RestController
 public class ChatController {
 
     @Autowired private SimpMessagingTemplate messagingTemplate;
@@ -55,9 +55,10 @@ public class ChatController {
     }
 
     @PostMapping("/chat/private")
-    public ResponseEntity<ChatRoom> getOrCreatePrivateChat(@RequestParam Long userId){
+    public ResponseEntity<ChatRoom> getOrCreatePrivateChat(@RequestParam String name,
+                                                           @RequestParam Long userId){
         Long currentUserId = getCurrentUserId();
-        ChatRoom room = chatRoomService.getOrCreatePrivateChat(currentUserId, userId);
+        ChatRoom room = chatRoomService.getOrCreatePrivateChat(currentUserId, userId, name);
         return ResponseEntity.ok(room);
     }
 
