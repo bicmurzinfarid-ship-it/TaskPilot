@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Чат тест</title>
+    <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/stompjs@2.3.3/lib/stomp.min.js"></script>
+</head>
+<body>
+<h3>Чат: <span id="username"></span></h3>
+<input type="text" id="message" placeholder="Сообщение">
+<button onclick="send()">Отправить</button>
+<div id="log" style="border:1px solid #ccc; height:200px; overflow:auto; margin-top:10px;"></div>
+
+<script>
+    const token = localStorage.getItem('authToken');
+    const user = localStorage.getItem('currentUser');
+
+    if (!token || !user) {
+        document.body.innerHTML = '<h3>❌ Нет авторизации. Перейдите на <a href="/logreg.html">/logreg.html</a></h3>';
+    } else {
+        document.getElementById('username').innerText = user;
+
+        const socket = new SockJS('/ws');
+        const stomp = Stomp.over(socket);
+
+        stomp.connect({'Authorization': 'Bearer ' + token}, function() {
+            log('✅ Подключено!');
+            stomp.subscribe('/user/queue/messages', function(msg) {
+                const data = JSON.parse(msg.body);
+                log('📩 От ' + data.senderName + ': ' + data.content);
+            });
+        });
+
+        window.send = function() {
+            const content = document.getElementById('message').value;
+            if (!content) return;
+
+            const recipient = prompt('Кому отправить? (username)', 'CSS');
+            if (recipient) {
+                stomp.send('/app/chat', {}, JSON.stringify({
+                    senderId: user,
+                    recipientId: recipient,
+                    senderName: user,
+                    recipientName: recipient,
+                    content: content
+                }));
+                log('✅ Отправлено: ' + content);
+                document.getElementById('message').value = '';
+            }
+        };
+    }
+
+    function log(msg) {
+        const div = document.getElementById('log');
+        div.innerHTML += '<div>' + msg + '</div>';
+        div.scrollTop = div.scrollHeight;
+    }
+</script>
+</body>
+</html>

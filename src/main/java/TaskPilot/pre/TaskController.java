@@ -20,4 +20,12 @@ public class TaskController {
     public Task createTask(@RequestBody Task task){
         return taskService.createTask(task);
     }
+    @DeleteMapping("/task/{id}")
+    public void deleteTask(@PathVariable Long id){
+        taskService.deleteTask(id);
+    }
+    @PatchMapping("/task/{id}/status")
+    public Task updateStatus(@PathVariable Long id, @RequestParam TaskStatus status){
+        return taskService.updateStatus(id, status);
+    }
 }

@@ -11,6 +11,11 @@
         <HBox style="-fx-background-color: #FF9A2E; -fx-padding: 14 16;" alignment="CENTER" spacing="10">
             <Label text="Task" style="-fx-font-size: 20; -fx-font-weight: bold; -fx-text-fill: #3D1A00;"/>
             <Label text="Pilot" style="-fx-font-size: 20; -fx-font-weight: bold; -fx-text-fill: white;"/>
+            <Region HBox.hgrow="ALWAYS"/>
+            <Button text="＋" onAction="#onAddChatClick"
+                    style="-fx-background-color: transparent; -fx-border-color: white;
+                           -fx-border-radius: 50; -fx-background-radius: 50;
+                           -fx-font-size: 16; -fx-padding: 2 8; -fx-text-fill: white; -fx-cursor: hand;"/>
         </HBox>
     </top>
 
@@ -23,7 +28,7 @@
                         style="-fx-background-color: transparent; -fx-font-size: 14;
                                -fx-text-fill: #FF9A2E; -fx-font-weight: bold;
                                -fx-border-color: #FF9A2E; -fx-border-width: 0 0 2 0;"/>
-                <Button fx:id="tabDm" text="ЛС" onAction="#onTabDm"
+                <Button fx:id="tabPr" text="ЛС" onAction="#onTabDm"
                         style="-fx-background-color: transparent; -fx-font-size: 14; -fx-text-fill: #555;"/>
                 <Button fx:id="tabGroups" text="Группы" onAction="#onTabGroups"
                         style="-fx-background-color: transparent; -fx-font-size: 14; -fx-text-fill: #555;"/>

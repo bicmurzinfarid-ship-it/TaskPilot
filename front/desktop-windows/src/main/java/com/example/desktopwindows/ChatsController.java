@@ -1,5 +1,7 @@
 package com.example.desktopwindows;
 
+import javafx.collections.FXCollections;
+import javafx.collections.ObservableList;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 import javafx.geometry.Insets;
@@ -23,16 +25,19 @@ public class ChatsController {
     @FXML private BorderPane rootPane;
     @FXML private VBox chatListBox;
     @FXML private Button tabAll;
-    @FXML private Button tabDm;
+    @FXML private Button tabPr;
     @FXML private Button tabGroups;
 
     private final HttpClient client = HttpClient.newHttpClient();
 
-    // Проекты — чаты групп
-    private final List<Long>   projectIds   = new ArrayList<>();
-    private final List<String> projectNames = new ArrayList<>();
+    private final List<String> chatIds = new ArrayList<>();
+    private final List<String> chatNames = new ArrayList<>();
+    private final List<String> chatTypes = new ArrayList<>();
 
-    private enum Tab { ALL, DM, GROUPS }
+    private final List<Long> allUserIds = new ArrayList<>();
+    private final List<String> allUsernames = new ArrayList<>();
+
+    private enum Tab { ALL, PR, GROUPS }
     private Tab currentTab = Tab.ALL;
 
     private static final String ACTIVE_STYLE =
@@ -46,35 +51,46 @@ public class ChatsController {
     public void initialize() {
         rootPane.setLeft(NavBar.build(NavBar.Page.CHATS,
                 this::onNavHome, this::onNavCalendar, this::onNavChats, this::onNavSettings));
-        loadProjects();
+        loadChats();
+        loadAllUsers();
     }
 
     // ─── Загрузка проектов (чаты групп) ──────────────────────────────────────
 
-    private void loadProjects() {
-        projectIds.clear();
-        projectNames.clear();
+    private void loadChats() {
+        chatIds.clear();
+        chatNames.clear();
+        chatTypes.clear();
         try {
             HttpRequest req = HttpRequest.newBuilder()
-                    .uri(URI.create("http://localhost:8080/project"))
+                    .uri(URI.create("http://localhost:8080/chat/rooms"))
                     .header("Authorization", "Bearer " + Session.getToken())
                     .GET().build();
             String body = client.send(req, HttpResponse.BodyHandlers.ofString()).body();
 
-            Pattern blockPat = Pattern.compile("\\{(.*?)\"members\"", Pattern.DOTALL);
+            System.out.println(">>> CHATS BODY: " + body);  // отладка
+
+            // Парсим каждый объект ChatRoom: от { до }
+            Pattern blockPat = Pattern.compile("\\{[^{}]*\"nameChat\"[^{}]*\\}", Pattern.DOTALL);
             Matcher blockM = blockPat.matcher(body);
             while (blockM.find()) {
-                String block = blockM.group(1);
-                if (!block.contains("\"creatorId\"")) continue;
-                Matcher idM   = Pattern.compile("\"id\":(\\d+)").matcher(block);
-                Matcher nameM = Pattern.compile("\"name\":\"([^\"]+)\"").matcher(block);
+                String block = blockM.group();
+                System.out.println(">>> BLOCK: " + block);  // отладка
+
+                Matcher idM   = Pattern.compile("\"id\":\"([^\"]+)\"").matcher(block);
+                Matcher nameM = Pattern.compile("\"nameChat\":\"([^\"]+)\"").matcher(block);
+                Matcher typeM = Pattern.compile("\"type\":\"([^\"]+)\"").matcher(block);
+
                 if (idM.find() && nameM.find()) {
-                    projectIds.add(Long.parseLong(idM.group(1)));
-                    projectNames.add(nameM.group(1));
+                    chatIds.add(idM.group(1));
+                    chatNames.add(nameM.group(1));
+                    chatTypes.add(typeM.find() ? typeM.group(1) : "PRIVATE");
+                    System.out.println(">>> ADDED: " + idM.group(1) + " " + nameM.group(1));
                 }
             }
         } catch (Exception e) {
-            showError("Ошибка загрузки проектов: " + e.getMessage());
+            showError("Ошибка загрузки чатов: " + e.getMessage());
+            e.printStackTrace();
         }
         renderChats();
     }
@@ -85,14 +101,19 @@ public class ChatsController {
         chatListBox.getChildren().clear();
 
         if (currentTab == Tab.ALL || currentTab == Tab.GROUPS) {
-            for (int i = 0; i < projectIds.size(); i++) {
-                chatListBox.getChildren().add(buildGroupChatRow(i));
+            for (int i = 0; i < chatIds.size(); i++) {
+                if (chatTypes.get(i).equals("GROUP")) {
+                    chatListBox.getChildren().add(buildGroupChatRow(i));
+                }
             }
         }
 
-        if (currentTab == Tab.ALL || currentTab == Tab.DM) {
-            // ЛС — заглушка, пока бэкенда нет
-            chatListBox.getChildren().add(buildPlaceholderRow());
+        if (currentTab == Tab.ALL || currentTab == Tab.PR) {
+            for (int i = 0; i < chatIds.size(); i++) {
+                if (chatTypes.get(i).equals("PRIVATE")) {
+                    chatListBox.getChildren().add(buildPlaceholderRow(i));
+                }
+            }
         }
 
         if (chatListBox.getChildren().isEmpty()) {
@@ -104,14 +125,12 @@ public class ChatsController {
 
     private HBox buildGroupChatRow(int i) {
         // Иконка группы
-        Label avatar = makeAvatar("👥", "#FF9A2E");
+        Label avatar = makeAvatar("👥", "#FAA757");
 
-        VBox info = new VBox(2);
-        Label nameLbl = new Label("Чат " + projectNames.get(i));
-        nameLbl.setStyle("-fx-font-size: 14; -fx-font-weight: bold;");
-        Label lastMsg = new Label("Нажмите чтобы открыть чат");
-        lastMsg.setStyle("-fx-font-size: 12; -fx-text-fill: #888;");
-        info.getChildren().addAll(nameLbl, lastMsg);
+        VBox info = new VBox(1);
+        Label nameLbl = new Label("Чат " + chatNames.get(i));
+        nameLbl.setStyle("-fx-text-fill: black;-fx-font-size: 14; -fx-font-weight: bold;");
+        info.getChildren().addAll(nameLbl);
         HBox.setHgrow(info, Priority.ALWAYS);
 
         HBox row = new HBox(12, avatar, info);
@@ -120,27 +139,29 @@ public class ChatsController {
         row.setStyle("-fx-background-color: transparent; -fx-border-color: #EEEEEE;"
                 + " -fx-border-width: 0 0 1 0; -fx-cursor: hand;");
 
-        final long pid = projectIds.get(i);
-        final String pname = projectNames.get(i);
-        row.setOnMouseClicked(e -> openChat(pid, pname, true));
+        final String cid = chatIds.get(i);;
+        final String cname = chatNames.get(i);
+        row.setOnMouseClicked(e -> openChat(cid, cname, true));
 
         return row;
     }
 
-    private HBox buildPlaceholderRow() {
+    private HBox buildPlaceholderRow(int i) {
         Label avatar = makeAvatar("👤", "#AAAAAA");
 
-        VBox info = new VBox(2);
-        Label nameLbl = new Label("Личные сообщения");
-        nameLbl.setStyle("-fx-font-size: 14; -fx-font-weight: bold;");
-        Label lastMsg = new Label("Скоро будет доступно");
-        lastMsg.setStyle("-fx-font-size: 12; -fx-text-fill: #AAA;");
-        info.getChildren().addAll(nameLbl, lastMsg);
+        VBox info = new VBox(1);
+        Label nameLbl = new Label(chatNames.get(i));
+        nameLbl.setStyle("-fx-text-fill: black; -fx-font-size: 14; -fx-font-weight: bold;");
+        info.getChildren().addAll(nameLbl);
 
         HBox row = new HBox(12, avatar, info);
         row.setAlignment(Pos.CENTER_LEFT);
         row.setPadding(new Insets(12, 16, 12, 16));
         row.setStyle("-fx-background-color: transparent; -fx-border-color: #EEEEEE; -fx-border-width: 0 0 1 0;");
+        final String cid = chatIds.get(i);
+        final String cname = chatNames.get(i);
+        row.setOnMouseClicked(e -> openChat(cid, cname, false));
+
         return row;
     }
 
@@ -156,7 +177,7 @@ public class ChatsController {
 
     // ─── Открытие чата ────────────────────────────────────────────────────────
 
-    private void openChat(long projectId, String projectName, boolean isGroup) {
+    private void openChat(String roomId, String projectName, boolean isGroup) {
         Dialog<Void> dialog = new Dialog<>();
         dialog.setTitle((isGroup ? "Чат " : "") + projectName);
         dialog.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
@@ -183,8 +204,8 @@ public class ChatsController {
         inputField.setStyle("-fx-background-radius: 20; -fx-padding: 8 12;");
 
         Button sendBtn = new Button("➤");
-        sendBtn.setStyle("-fx-background-color: #FF9A2E; -fx-background-radius: 50;"
-                + " -fx-font-size: 14; -fx-padding: 6 12; -fx-cursor: hand; -fx-text-fill: white;");
+        sendBtn.setStyle("-fx-background-color: #FAA757; -fx-background-radius: 50;"
+                + " -fx-font-size: 14; -fx-padding: 6 12; -fx-cursor: hand;");
 
         Runnable sendAction = () -> {
             String text = inputField.getText().trim();
@@ -223,9 +244,8 @@ public class ChatsController {
         lbl.setWrapText(true);
         lbl.setMaxWidth(280);
         lbl.setPadding(new Insets(8, 12, 8, 12));
-        lbl.setStyle("-fx-background-color: " + (isMine ? "#FF9A2E" : "#E0E0E0")
-                + "; -fx-background-radius: 18; -fx-font-size: 13;"
-                + (isMine ? " -fx-text-fill: white;" : ""));
+        lbl.setStyle("-fx-background-color: " + (isMine ? "#FAA757" : "#E0E0E0")
+                + "; -fx-background-radius: 18; -fx-font-size: 13;");
 
         HBox box = new HBox(lbl);
         box.setAlignment(isMine ? Pos.CENTER_RIGHT : Pos.CENTER_LEFT);
@@ -233,16 +253,162 @@ public class ChatsController {
         return box;
     }
 
+    private void loadAllUsers() {
+        try {
+            HttpRequest req = HttpRequest.newBuilder()
+                    .uri(URI.create("http://localhost:8080/user"))
+                    .header("Authorization", "Bearer " + Session.getToken())
+                    .GET()
+                    .build();
+            HttpResponse<String> resp = client.send(req, HttpResponse.BodyHandlers.ofString());
+
+            allUserIds.clear();
+            allUsernames.clear();
+
+            Pattern pat = Pattern.compile("\"id\":(\\d+),\"username\":\"([^\"]+)\"");
+            Matcher m = pat.matcher(resp.body());
+            while (m.find()) {
+                allUserIds.add(Long.parseLong(m.group(1)));
+                allUsernames.add(m.group(2));
+            }
+        } catch (Exception e) {
+            showError("Ошибка загрузки пользователей: " + e.getMessage());
+        }
+    }
+
+    // ─── Добавить личную задачу ───────────────────────────────────────────────
+
+    @FXML
+    protected void onAddChatClick() {
+        Dialog<ButtonType> dialog = new Dialog<>();
+        dialog.setTitle("Новый чат");
+        ButtonType createBtn = new ButtonType("Создать", ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(createBtn, ButtonType.CANCEL);
+
+        TextField titleField = new TextField();
+        titleField.setPromptText("Название чата...");
+        titleField.setStyle("-fx-background-color: #E0E0E0; -fx-background-radius: 8; -fx-padding: 8;");
+
+        Label choiceType = new Label("Выберите тип чата");
+        RadioButton button1 = new RadioButton("Личные сообщения");
+        RadioButton button2 = new RadioButton("Общий чат");
+        ToggleGroup group = new ToggleGroup();
+        button1.setToggleGroup(group);
+        button2.setToggleGroup(group);
+        button1.setSelected(true);
+        //descField.setPrefRowCount(3);
+        //descField.setStyle("-fx-background-color: #E0E0E0; -fx-background-radius: 8;");
+
+        TextField searchField = new TextField();
+        searchField.setPromptText("Никнейм участника");
+        Button addBtn = new Button("Добавить");
+        Label searchStatus = new Label();
+
+        List<Long> selectedIds = new ArrayList<>();
+        ObservableList<String> selectedNames = FXCollections.observableArrayList();
+        ListView<String> selectedList = new ListView<>(selectedNames);
+        selectedList.setPrefHeight(100);
+
+        addBtn.setOnAction(e -> {
+            String query = searchField.getText().trim();
+            if (query.isBlank()) return;
+            int i = allUsernames.indexOf(query);
+
+            if (i < 0) {
+                searchStatus.setText("Пользователь «" + query + "» не найден");
+                return;
+            }
+            Long uid = allUserIds.get(i);
+            if (selectedIds.contains(uid)) {
+                searchStatus.setText("Уже добавлен");
+                return;
+            }
+            selectedIds.add(uid);
+            selectedNames.add(query);
+            searchField.clear();
+            searchStatus.setText("");
+        });
+
+        VBox content = new VBox(8,
+                new Label("Назовите свою задачу:"), titleField,
+                new Label("Выберите тип чата"), button1, button2,
+                new Label("Добавить участников:"),
+                new HBox(5, searchField, addBtn),
+                searchStatus,
+                selectedList);
+        content.setPrefWidth(340);
+        dialog.getDialogPane().setContent(content);
+
+        dialog.showAndWait().ifPresent(btn -> {
+            if (btn != createBtn) return;
+            String t = titleField.getText().trim();
+            if (t.isBlank()) { showError("Название не может быть пустым"); return; }
+            if(selectedIds.size() != 1 && button1.isSelected() && !button2.isSelected()){
+                showError("В личный чат можно добавить только одного собеседника");
+                return;
+            }
+            CreateChat(t, selectedIds, button1.isSelected());
+            loadChats();
+        });
+    }
+
+    private void CreateChat(String name, List<Long> memberIds, boolean isPrivate){
+        try {
+            String endpoint;
+            String json = null;
+
+            if (isPrivate) {
+                // Личный чат: POST /chat/private?name=...&userId=...
+                if (memberIds.isEmpty()) {
+                    showError("Для личного чата нужен собеседник");
+                    return;
+                }
+                String encodedName = java.net.URLEncoder.encode(name, java.nio.charset.StandardCharsets.UTF_8);
+                endpoint = "http://localhost:8080/chat/private?name=" + encodedName + "&userId=" + memberIds.get(0);
+            } else {
+                // Групповой чат: POST /chat/group с телом {name, members}
+                endpoint = "http://localhost:8080/chat/group";
+                StringBuilder membersJson = new StringBuilder();
+                for (int i = 0; i < memberIds.size(); i++) {
+                    if (i > 0) membersJson.append(",");
+                    membersJson.append(memberIds.get(i));
+                }
+                json = "{\"name\":\"" + name.replace("\"", "\\\"") + "\",\"members\":[" + membersJson + "]}";
+            }
+            System.out.println(">>> SENDING POST to: " + endpoint);  // ДОБАВЬ ЭТО
+            HttpRequest.BodyPublisher body = isPrivate
+                    ? HttpRequest.BodyPublishers.noBody()
+                    : HttpRequest.BodyPublishers.ofString(json);
+
+            HttpRequest req = HttpRequest.newBuilder()
+                    .uri(URI.create(endpoint))
+                    .header("Content-Type", "application/json")
+                    .header("Authorization", "Bearer " + Session.getToken())
+                    .POST(body)
+                    .build();
+
+            HttpResponse<String> resp = client.send(req, HttpResponse.BodyHandlers.ofString());
+            System.out.println(">>> RESPONSE: " + resp.statusCode() + " " + resp.body());  // ДОБАВЬ ЭТО
+            if (resp.statusCode() != 200) {
+                showError("Ошибка создания чата (" + resp.statusCode() + "): " + resp.body());
+
+            }
+        } catch (Exception e) {
+            showError("Ошибка: " + e.getMessage());
+            e.printStackTrace();  // ДОБАВЬ ЭТО
+        }
+    }
+
     // ─── Вкладки ─────────────────────────────────────────────────────────────
 
     @FXML protected void onTabAll()    { setTab(Tab.ALL); }
-    @FXML protected void onTabDm()     { setTab(Tab.DM); }
+    @FXML protected void onTabDm()     { setTab(Tab.PR); }
     @FXML protected void onTabGroups() { setTab(Tab.GROUPS); }
 
     private void setTab(Tab tab) {
         currentTab = tab;
         tabAll.setStyle(tab == Tab.ALL    ? ACTIVE_STYLE : INACTIVE_STYLE);
-        tabDm.setStyle(tab == Tab.DM      ? ACTIVE_STYLE : INACTIVE_STYLE);
+        tabPr.setStyle(tab == Tab.PR      ? ACTIVE_STYLE : INACTIVE_STYLE);
         tabGroups.setStyle(tab == Tab.GROUPS ? ACTIVE_STYLE : INACTIVE_STYLE);
         renderChats();
     }

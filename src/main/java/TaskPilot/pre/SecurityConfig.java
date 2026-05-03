@@ -52,7 +52,10 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/h2-console", "/h2-console/**").permitAll() // H2 консоль
                         .requestMatchers("/auth/login").permitAll()     // вход — без токена
-                        .requestMatchers("/user").permitAll()           // регистрация — без токена
+                        .requestMatchers("/logreg.html").permitAll()
+                        .requestMatchers("/user").permitAll()           // регистрация — без токена// временно для теста
+                        .requestMatchers("/chat-test.html").permitAll()
+                        .requestMatchers("/ws", "/ws/**", "/ws/info/**").permitAll()
                         .anyRequest().authenticated()
                 )
                 .authenticationProvider(authenticationProvider())
