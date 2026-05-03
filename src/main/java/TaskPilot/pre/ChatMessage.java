@@ -1,74 +1,71 @@
 package TaskPilot.pre;
 
-import lombok.Builder;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 @Document
-@Builder
 public class ChatMessage {
     @Id
     private String id;
-    private String chatId;
-    private String senderId;
-    private String recipientId;
+    private String roomId;
+    private Long senderId;
     private String senderName;
-    private String recipientName;
     private String content;
+    private ChatMessageStatus status = ChatMessageStatus.SENT;
 
-    public String getChatId() {
-        return chatId;
+    public ChatMessage() {}
+
+    public ChatMessage(String roomId, Long senderId, String content) {
+        this.roomId = roomId;
+        this.senderId = senderId;
+        this.content = content;
     }
 
     public String getId() {
         return id;
     }
 
-    public String getContent() {
-        return content;
+    public void setId(String id) {
+        this.id = id;
     }
 
-    public String getRecipientId() {
-        return recipientId;
+    public String getRoomId() {
+        return roomId;
     }
 
-    public String getRecipientName() {
-        return recipientName;
+    public void setRoomId(String roomId) {
+        this.roomId = roomId;
     }
 
-    public String getSenderId() {
+    public Long getSenderId() {
         return senderId;
+    }
+
+    public void setSenderId(Long senderId) {
+        this.senderId = senderId;
     }
 
     public String getSenderName() {
         return senderName;
     }
 
-    public void setId(String id) {
-        this.id = id;
+    public void setSenderName(String senderName) {
+        this.senderName = senderName;
     }
 
-    public void setChatId(String chatId) {
-        this.chatId = chatId;
+    public String getContent() {
+        return content;
     }
 
     public void setContent(String content) {
         this.content = content;
     }
 
-    public void setRecipientId(String recipientId) {
-        this.recipientId = recipientId;
+    public ChatMessageStatus getStatus() {
+        return status;
     }
 
-    public void setRecipientName(String recipientName) {
-        this.recipientName = recipientName;
-    }
-
-    public void setSenderId(String senderId) {
-        this.senderId = senderId;
-    }
-
-    public void setSenderName(String senderName) {
-        this.senderName = senderName;
+    public void setStatus(ChatMessageStatus status) {
+        this.status = status;
     }
 }
