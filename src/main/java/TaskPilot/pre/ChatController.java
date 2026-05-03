@@ -5,6 +5,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.messaging.simp.user.SimpUserRegistry;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
@@ -16,10 +17,11 @@ import java.util.Map;
 @RestController
 public class ChatController {
 
-    @Autowired private SimpMessagingTemplate messagingTemplate;
-    @Autowired private ChatMessageService chatMessageService;
-    @Autowired private ChatRoomService chatRoomService;
-    @Autowired private UserRepository userRepository;
+    private SimpMessagingTemplate messagingTemplate;
+    private ChatMessageService chatMessageService;
+    private ChatRoomService chatRoomService;
+    private UserRepository userRepository;
+
 
     public ChatController(SimpMessagingTemplate messagingTemplate,
                           ChatMessageService chatMessageService,
@@ -33,6 +35,9 @@ public class ChatController {
 
     @MessageMapping("/chat")
     public void processMessage(@Payload ChatMessage chatMessage, Principal principal) {
+        if (principal == null) {
+            throw new SecurityException("Не аутентифицирован");
+        }
         String username = principal.getName();
         Long senderId = userRepository.findByUsername(username)
                 .map(User::getId)
@@ -41,17 +46,7 @@ public class ChatController {
         chatMessage.setSenderName(username);
         ChatMessage saved = chatMessageService.save(chatMessage);
 
-        ChatRoom room = chatRoomService.getRoom(chatMessage.getRoomId());
-
-        for(Long member: room.getMemberIds()){
-            if(!member.equals(senderId)){
-                messagingTemplate.convertAndSendToUser(
-                        String.valueOf(member),
-                        "/queue/messages",
-                        saved
-                );
-            }
-        }
+        messagingTemplate.convertAndSend("/topic/chat/" + chatMessage.getRoomId(), saved);
     }
 
     @PostMapping("/chat/private")
@@ -67,7 +62,10 @@ public class ChatController {
         Long currentUserId = getCurrentUserId();
         String name = (String) body.get("name");
         @SuppressWarnings("unchecked")
-        List<Long> members = (List<Long>) body.get("members");
+        List<Object> rawMembers = (List<Object>) body.get("members");
+        List<Long> members = rawMembers.stream()
+                .map(obj -> ((Number) obj).longValue())
+                .toList();
         ChatRoom room = chatRoomService.createGroupChat(currentUserId, name, members);
         return ResponseEntity.ok(room);
     }

@@ -38,7 +38,7 @@ public class WebSocketAuthInterceptor implements ChannelInterceptor {
                     var userDetails = userDetailsService.loadUserByUsername(username);
 
                     var auth = new UsernamePasswordAuthenticationToken(
-                            userDetails.getUsername(), // Principal = username (используется как userId)
+                            userDetails,
                             null,
                             userDetails.getAuthorities()
                     );
