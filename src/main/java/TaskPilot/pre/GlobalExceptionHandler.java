@@ -3,6 +3,7 @@ package TaskPilot.pre;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 import java.util.Map;
 
@@ -13,6 +14,13 @@ import java.util.Map;
  */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    // Файл превысил лимит на уровне Spring multipart — 413
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<?> handleMaxSize(MaxUploadSizeExceededException e) {
+        return ResponseEntity.status(413)
+                .body(Map.of("error", "Файл слишком большой. Максимальный размер: 10 МБ"));
+    }
 
     // Неверные входные данные — 400 Bad Request
     @ExceptionHandler(IllegalArgumentException.class)

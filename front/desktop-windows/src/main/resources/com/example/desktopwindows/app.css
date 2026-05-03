@@ -1,0 +1,129 @@
+/* ─── Основной цвет ─────────────────────────────────────────────────────── */
+/* Основной оранжевый: #FF9A2E (ярче чем #FAA757) */
+
+/* ─── Поле ввода на экранах авторизации ─────────────────────────────────── */
+.auth-field {
+    -fx-background-color: #FAFAFA;
+    -fx-background-radius: 10;
+    -fx-border-color: #E0E0E0;
+    -fx-border-radius: 10;
+    -fx-border-width: 1.5;
+    -fx-padding: 10 14;
+    -fx-font-size: 13px;
+}
+
+.auth-field:focused {
+    -fx-border-color: #FF9A2E;
+    -fx-background-color: white;
+}
+
+/* ─── Кнопка авторизации ─────────────────────────────────────────────────── */
+.auth-btn {
+    -fx-background-color: #FF9A2E;
+    -fx-text-fill: white;
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+    -fx-background-radius: 12;
+    -fx-padding: 12 0;
+    -fx-cursor: hand;
+    -fx-border-color: transparent;
+}
+
+.auth-btn:hover {
+    -fx-background-color: #FF8610;
+}
+
+.auth-btn:pressed {
+    -fx-background-color: #E07400;
+}
+
+/* ─── Кнопки в боковой панели ────────────────────────────────────────────── */
+.nav-button {
+    -fx-background-color: transparent;
+    -fx-font-size: 11px;
+    -fx-text-fill: #3D1A00;
+    -fx-cursor: hand;
+    -fx-background-radius: 10;
+    -fx-padding: 8 6;
+    -fx-content-display: top;
+    -fx-graphic-text-gap: 4;
+    -fx-min-width: 70;
+    -fx-max-width: 70;
+    -fx-alignment: center;
+}
+
+.nav-button:hover {
+    -fx-background-color: rgba(0, 0, 0, 0.12);
+}
+
+.nav-button:pressed {
+    -fx-background-color: rgba(0, 0, 0, 0.22);
+}
+
+.nav-button-active {
+    -fx-background-color: rgba(0, 0, 0, 0.15);
+    -fx-font-weight: bold;
+}
+
+/* ─── Основная оранжевая кнопка (+ Добавить и т.д.) ─────────────────────── */
+.btn-primary {
+    -fx-background-color: #FF9A2E;
+    -fx-background-radius: 20;
+    -fx-font-size: 13px;
+    -fx-padding: 6 16;
+    -fx-cursor: hand;
+}
+
+.btn-primary:hover {
+    -fx-background-color: #FF8610;
+}
+
+.btn-primary:pressed {
+    -fx-background-color: #E07400;
+}
+
+/* ─── Диалоговые кнопки ──────────────────────────────────────────────────── */
+.btn-dialog {
+    -fx-background-color: #FF9A2E;
+    -fx-background-radius: 8;
+    -fx-padding: 6 14;
+    -fx-cursor: hand;
+}
+
+.btn-dialog:hover {
+    -fx-background-color: #FF8610;
+}
+
+.btn-dialog:pressed {
+    -fx-background-color: #E07400;
+}
+
+/* ─── Вкладки (Все / Личные / Группы) ───────────────────────────────────── */
+.tab-btn {
+    -fx-background-color: transparent;
+    -fx-font-size: 14px;
+    -fx-text-fill: #555;
+    -fx-cursor: hand;
+    -fx-background-radius: 6;
+    -fx-padding: 4 10;
+}
+
+.tab-btn:hover {
+    -fx-background-color: rgba(0, 0, 0, 0.07);
+}
+
+/* ─── Прозрачная кнопка (стрелки, ✕ и т.д.) ─────────────────────────────── */
+.btn-icon {
+    -fx-background-color: transparent;
+    -fx-cursor: hand;
+    -fx-background-radius: 50;
+    -fx-padding: 4 8;
+}
+
+.btn-icon:hover {
+    -fx-background-color: rgba(0, 0, 0, 0.10);
+}
+
+.btn-icon:pressed {
+    -fx-background-color: rgba(0, 0, 0, 0.20);
+}

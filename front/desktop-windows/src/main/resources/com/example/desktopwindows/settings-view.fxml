@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.image.*?>
+<?import javafx.geometry.Insets?>
+
+<BorderPane fx:id="rootPane" xmlns:fx="http://javafx.com/fxml"
+            fx:controller="com.example.desktopwindows.SettingsController"
+            style="-fx-background-color: #F5F0EB;"
+            stylesheets="@app.css">
+
+    <top>
+        <HBox style="-fx-background-color: #FF9A2E; -fx-padding: 14 16;" alignment="CENTER">
+            <Label text="Task" style="-fx-font-size: 20; -fx-font-weight: bold; -fx-text-fill: #3D1A00;"/>
+            <Label text="Pilot" style="-fx-font-size: 20; -fx-font-weight: bold; -fx-text-fill: white;"/>
+        </HBox>
+    </top>
+
+    <center>
+        <ScrollPane fitToWidth="true"
+                    style="-fx-background-color: transparent; -fx-background: transparent; -fx-border-color: transparent;">
+            <VBox spacing="0" style="-fx-background-color: #F5F0EB;">
+
+                <!-- Профиль -->
+                <VBox style="-fx-background-color: white; -fx-background-radius: 16;
+                             -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.06), 12, 0, 0, 2);
+                             -fx-padding: 20 20 16 20;"
+                      spacing="0">
+                    <VBox.margin><Insets top="16" right="16" bottom="12" left="16"/></VBox.margin>
+
+                    <Label text="Профиль" style="-fx-font-size: 13; -fx-text-fill: #999; -fx-font-weight: bold;">
+                        <VBox.margin><Insets bottom="14"/></VBox.margin>
+                    </Label>
+
+                    <!-- Аватар + имя -->
+                    <HBox spacing="14" alignment="CENTER_LEFT">
+                        <Label fx:id="avatarLabel"
+                               style="-fx-background-color: #FF9A2E; -fx-background-radius: 50;
+                                      -fx-font-size: 22; -fx-min-width: 52; -fx-min-height: 52;
+                                      -fx-max-width: 52; -fx-max-height: 52; -fx-alignment: center;
+                                      -fx-text-fill: white; -fx-font-weight: bold;"
+                               text="?"/>
+                        <VBox spacing="2">
+                            <Label fx:id="usernameLabel"
+                                   style="-fx-font-size: 17; -fx-font-weight: bold; -fx-text-fill: #2D2D2D;"
+                                   text="Загрузка..."/>
+                            <Label fx:id="emailLabel"
+                                   style="-fx-font-size: 13; -fx-text-fill: #999;"
+                                   text=""/>
+                        </VBox>
+                    </HBox>
+                </VBox>
+
+                <!-- Настройки приложения -->
+                <VBox style="-fx-background-color: white; -fx-background-radius: 16;
+                             -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.06), 12, 0, 0, 2);
+                             -fx-padding: 20 20 4 20;"
+                      spacing="0">
+                    <VBox.margin><Insets right="16" bottom="12" left="16"/></VBox.margin>
+
+                    <Label text="Приложение" style="-fx-font-size: 13; -fx-text-fill: #999; -fx-font-weight: bold;">
+                        <VBox.margin><Insets bottom="8"/></VBox.margin>
+                    </Label>
+
+                    <HBox alignment="CENTER_LEFT" spacing="10"
+                          style="-fx-padding: 12 0; -fx-border-color: #F0F0F0; -fx-border-width: 0 0 1 0;">
+                        <Label text="🔔" style="-fx-font-size: 16;"/>
+                        <Label text="Уведомления" style="-fx-font-size: 14; -fx-text-fill: #2D2D2D;"/>
+                        <Region HBox.hgrow="ALWAYS"/>
+                        <Label text="Скоро" style="-fx-font-size: 12; -fx-text-fill: #BBB;"/>
+                    </HBox>
+
+                    <HBox alignment="CENTER_LEFT" spacing="10"
+                          style="-fx-padding: 12 0; -fx-border-color: #F0F0F0; -fx-border-width: 0 0 1 0;">
+                        <Label text="🌙" style="-fx-font-size: 16;"/>
+                        <Label text="Тёмная тема" style="-fx-font-size: 14; -fx-text-fill: #2D2D2D;"/>
+                        <Region HBox.hgrow="ALWAYS"/>
+                        <Label text="Скоро" style="-fx-font-size: 12; -fx-text-fill: #BBB;"/>
+                    </HBox>
+
+                    <HBox alignment="CENTER_LEFT" spacing="10"
+                          style="-fx-padding: 12 0;">
+                        <Label text="🌐" style="-fx-font-size: 16;"/>
+                        <Label text="Язык: Русский" style="-fx-font-size: 14; -fx-text-fill: #2D2D2D;"/>
+                        <Region HBox.hgrow="ALWAYS"/>
+                        <Label text="Скоро" style="-fx-font-size: 12; -fx-text-fill: #BBB;"/>
+                    </HBox>
+                </VBox>
+
+                <!-- О приложении -->
+                <VBox style="-fx-background-color: white; -fx-background-radius: 16;
+                             -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.06), 12, 0, 0, 2);
+                             -fx-padding: 20 20 4 20;"
+                      spacing="0">
+                    <VBox.margin><Insets right="16" bottom="12" left="16"/></VBox.margin>
+
+                    <Label text="О приложении" style="-fx-font-size: 13; -fx-text-fill: #999; -fx-font-weight: bold;">
+                        <VBox.margin><Insets bottom="8"/></VBox.margin>
+                    </Label>
+
+                    <HBox alignment="CENTER_LEFT" spacing="10"
+                          style="-fx-padding: 12 0; -fx-border-color: #F0F0F0; -fx-border-width: 0 0 1 0;">
+                        <Label text="📋" style="-fx-font-size: 16;"/>
+                        <Label text="TaskPilot" style="-fx-font-size: 14; -fx-text-fill: #2D2D2D;"/>
+                        <Region HBox.hgrow="ALWAYS"/>
+                        <Label text="v1.0" style="-fx-font-size: 12; -fx-text-fill: #BBB;"/>
+                    </HBox>
+
+                    <HBox alignment="CENTER_LEFT" spacing="10"
+                          style="-fx-padding: 12 0;">
+                        <Label text="👥" style="-fx-font-size: 16;"/>
+                        <Label text="Команда разработки" style="-fx-font-size: 14; -fx-text-fill: #2D2D2D;"/>
+                        <Region HBox.hgrow="ALWAYS"/>
+                        <Label text="2025" style="-fx-font-size: 12; -fx-text-fill: #BBB;"/>
+                    </HBox>
+                </VBox>
+
+                <!-- Выход -->
+                <VBox style="-fx-padding: 0 16 24 16;">
+                    <Button text="Выйти из аккаунта" onAction="#onLogoutClick" maxWidth="Infinity"
+                            style="-fx-background-color: white; -fx-text-fill: #E53935;
+                                   -fx-font-size: 14; -fx-font-weight: bold;
+                                   -fx-background-radius: 16; -fx-padding: 14 0;
+                                   -fx-cursor: hand;
+                                   -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.06), 12, 0, 0, 2);
+                                   -fx-border-color: transparent;"/>
+                </VBox>
+
+            </VBox>
+        </ScrollPane>
+    </center>
+
+</BorderPane>
