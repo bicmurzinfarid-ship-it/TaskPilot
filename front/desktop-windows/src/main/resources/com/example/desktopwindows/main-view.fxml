@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.image.*?>
+
+<BorderPane fx:id="rootPane" xmlns:fx="http://javafx.com/fxml"
+            fx:controller="com.example.desktopwindows.MainController"
+            style="-fx-background-color: #F5F0EB;"
+            stylesheets="@app.css">
+
+    <top>
+        <HBox style="-fx-background-color: #FF9A2E; -fx-padding: 14 16;" alignment="CENTER">
+            <Label text="Task" style="-fx-font-size: 20; -fx-font-weight: bold; -fx-text-fill: #3D1A00;"/>
+            <Label text="Pilot" style="-fx-font-size: 20; -fx-font-weight: bold; -fx-text-fill: white;"/>
+        </HBox>
+    </top>
+
+    <center>
+        <VBox style="-fx-background-color: #F5F0EB;">
+
+            <HBox fx:id="tasksSectionRow"
+                  style="-fx-padding: 14 16; -fx-border-color: #CCCCCC; -fx-border-width: 0 0 1 0; -fx-cursor: hand;"
+                  alignment="CENTER_LEFT" onMouseClicked="#onTasksSectionClick">
+                <ImageView fx:id="tasksIcon" fitWidth="26" fitHeight="26" preserveRatio="true"/>
+                <Label text="  Задачи" style="-fx-font-size: 16;"/>
+                <Region HBox.hgrow="ALWAYS"/>
+                <Label text="▶" style="-fx-font-size: 14; -fx-text-fill: #888;"/>
+            </HBox>
+
+            <HBox style="-fx-padding: 14 16 8 16;" alignment="CENTER_LEFT">
+                <ImageView fx:id="folderOutlineIcon" fitWidth="26" fitHeight="26" preserveRatio="true"/>
+                <Label text="  Проекты" style="-fx-font-size: 16; -fx-font-weight: bold;"/>
+                <Region HBox.hgrow="ALWAYS"/>
+                <Button fx:id="addProjectBtn" onAction="#onAddProjectClick" styleClass="btn-icon"
+                        style="-fx-border-color: #555; -fx-border-radius: 50; -fx-background-radius: 50;
+                               -fx-font-size: 18; -fx-padding: 1 7; -fx-text-fill: #555;"
+                        text="＋"/>
+            </HBox>
+
+            <ListView fx:id="projectListView" VBox.vgrow="ALWAYS"
+                      style="-fx-background-color: transparent; -fx-border-color: transparent; -fx-padding: 0 8;"/>
+        </VBox>
+    </center>
+
+</BorderPane>

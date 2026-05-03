@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.control.*?>
+
+<BorderPane fx:id="rootPane" xmlns:fx="http://javafx.com/fxml"
+            fx:controller="com.example.desktopwindows.CalendarController"
+            style="-fx-background-color: #F5F0EB;"
+            stylesheets="@app.css">
+
+    <top>
+        <HBox style="-fx-background-color: #FF9A2E; -fx-padding: 14 16;" alignment="CENTER" spacing="10">
+            <Label text="Task" style="-fx-font-size: 20; -fx-font-weight: bold; -fx-text-fill: #3D1A00;"/>
+            <Label text="Pilot" style="-fx-font-size: 20; -fx-font-weight: bold; -fx-text-fill: white;"/>
+        </HBox>
+    </top>
+
+    <center>
+        <VBox style="-fx-padding: 10; -fx-spacing: 8; -fx-background-color: #F5F0EB;">
+
+            <HBox alignment="CENTER" spacing="20" style="-fx-padding: 5;">
+                <Button text="◀" onAction="#onPrevMonth"
+                        style="-fx-background-color: transparent; -fx-font-size: 18;"/>
+                <Label fx:id="monthLabel" text="Апрель 2026"
+                       style="-fx-font-size: 18; -fx-font-weight: bold;" minWidth="180" alignment="CENTER"/>
+                <Button text="▶" onAction="#onNextMonth"
+                        style="-fx-background-color: transparent; -fx-font-size: 18;"/>
+            </HBox>
+
+            <GridPane fx:id="calendarGrid" hgap="2" vgap="2"
+                      style="-fx-padding: 5;" gridLinesVisible="false">
+            </GridPane>
+
+        </VBox>
+    </center>
+
+</BorderPane>

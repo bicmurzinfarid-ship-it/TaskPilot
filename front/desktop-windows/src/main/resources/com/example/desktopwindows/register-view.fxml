@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.geometry.Insets?>
+
+<StackPane xmlns:fx="http://javafx.com/fxml"
+           fx:controller="com.example.desktopwindows.RegisterController"
+           style="-fx-background-color: #F5F0EB;"
+           stylesheets="@app.css">
+
+    <VBox alignment="CENTER" spacing="0" maxWidth="380" minWidth="340"
+          style="-fx-background-color: white; -fx-background-radius: 20;
+                 -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.10), 24, 0, 0, 4);
+                 -fx-padding: 36 40 36 40;">
+
+        <HBox alignment="CENTER_LEFT">
+            <Button text="← Назад" onAction="#onBackClick"
+                    style="-fx-background-color: transparent; -fx-text-fill: #FF9A2E;
+                           -fx-font-size: 13; -fx-font-weight: bold; -fx-cursor: hand;
+                           -fx-padding: 0; -fx-border-color: transparent;">
+            </Button>
+            <VBox.margin><Insets bottom="16"/></VBox.margin>
+        </HBox>
+
+        <HBox alignment="CENTER" spacing="0">
+            <Label text="Task" style="-fx-font-size: 26; -fx-font-weight: bold; -fx-text-fill: #2D2D2D;"/>
+            <Label text="Pilot" style="-fx-font-size: 26; -fx-font-weight: bold; -fx-text-fill: #FF9A2E;"/>
+        </HBox>
+        <Label text="Создайте аккаунт" style="-fx-font-size: 13; -fx-text-fill: #999;">
+            <VBox.margin><Insets top="4" bottom="28"/></VBox.margin>
+        </Label>
+
+        <Label text="Логин" style="-fx-font-size: 12; -fx-text-fill: #555; -fx-font-weight: bold;">
+            <VBox.margin><Insets bottom="5"/></VBox.margin>
+        </Label>
+        <TextField fx:id="usernameField" promptText="Придумайте логин" styleClass="auth-field">
+            <VBox.margin><Insets bottom="16"/></VBox.margin>
+        </TextField>
+
+        <Label text="Email" style="-fx-font-size: 12; -fx-text-fill: #555; -fx-font-weight: bold;">
+            <VBox.margin><Insets bottom="5"/></VBox.margin>
+        </Label>
+        <TextField fx:id="emailField" promptText="Введите email" styleClass="auth-field">
+            <VBox.margin><Insets bottom="16"/></VBox.margin>
+        </TextField>
+
+        <Label text="Пароль" style="-fx-font-size: 12; -fx-text-fill: #555; -fx-font-weight: bold;">
+            <VBox.margin><Insets bottom="5"/></VBox.margin>
+        </Label>
+        <PasswordField fx:id="passwordField" promptText="Придумайте пароль" styleClass="auth-field">
+            <VBox.margin><Insets bottom="8"/></VBox.margin>
+        </PasswordField>
+
+        <Label fx:id="errorLabel" text="" wrapText="true" style="-fx-text-fill: #E53935; -fx-font-size: 12;">
+            <VBox.margin><Insets bottom="8"/></VBox.margin>
+        </Label>
+
+        <Button text="ЗАРЕГИСТРИРОВАТЬСЯ" onAction="#onRegisterClick" maxWidth="Infinity" styleClass="auth-btn">
+            <VBox.margin><Insets top="4"/></VBox.margin>
+        </Button>
+    </VBox>
+</StackPane>
