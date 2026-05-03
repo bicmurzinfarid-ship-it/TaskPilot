@@ -42,6 +42,7 @@ public class ChatsController {
     private WebSocketClient currentWs = null;
     private String currentRoomId = null;
     private long currentUserId = -1;
+    private int selectedChatIndex = -1;
 
     private enum Tab { ALL, PR, GROUPS }
     private Tab currentTab = Tab.ALL;
@@ -58,6 +59,25 @@ public class ChatsController {
         loadCurrentUser();
         loadChats();
         loadAllUsers();
+        ContextMenu contextMenu = new ContextMenu();
+        MenuItem openItem = new MenuItem("Открыть");
+        MenuItem manageItem = new MenuItem("Управление группой");
+        MenuItem deleteItem = new MenuItem("Удалить чат");
+
+        openItem.setOnAction(e -> onOpenChatClick());
+        manageItem.setOnAction(e -> onManageGroupChat());
+        deleteItem.setOnAction(e -> onDeleteChatClick());
+
+        contextMenu.getItems().addAll(openItem, manageItem, new SeparatorMenuItem(), deleteItem);
+
+        // Добавляем меню к chatListBox (или к контейнеру со списком чатов)
+        // chatListBox.setContextMenu(contextMenu);
+
+        // Обработчик клика для выбора чата
+      //  chatListBox.setOnMouseClicked(event -> {
+            // Нужно определить какой чат выбран
+            // Для этого нужно хранить список узлов или использовать lookup
+       // });
     }
 
 
@@ -182,6 +202,11 @@ public class ChatsController {
         final String cname = chatNames.get(i);
         row.setOnMouseClicked(e -> openChat(cid, cname, true));
 
+        final int index = i;
+        row.setOnMouseClicked(e -> {
+            selectedChatIndex = index;
+            openChat(cid, cname, true);
+        });
         return row;
     }
 
@@ -201,6 +226,11 @@ public class ChatsController {
         final String cname = chatNames.get(i);
         row.setOnMouseClicked(e -> openChat(cid, cname, false));
 
+        final int index = i;
+        row.setOnMouseClicked(e -> {
+            selectedChatIndex = index;
+            openChat(cid, cname, false);
+        });
         return row;
     }
 
@@ -225,9 +255,9 @@ public class ChatsController {
         currentRoomId = roomId;
 
         Dialog<Void> dialog = new Dialog<>();
-        dialog.setTitle((isGroup ? "Чат " : "") + roomName);
+        dialog.setTitle((isGroup ? "Группа: " : "Чат: ") + roomName);
         dialog.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
-        dialog.getDialogPane().setPrefSize(500, 500);
+        dialog.getDialogPane().setPrefSize(550, 550);
 
         // История сообщений
         VBox messageBox = new VBox(8);
@@ -237,8 +267,42 @@ public class ChatsController {
         scroll.setStyle("-fx-background-color: transparent; -fx-background: #F5F0EB;");
         VBox.setVgrow(scroll, Priority.ALWAYS);
 
-        // Загружаем историю
         loadHistory(roomId, messageBox, scroll);
+
+        // Панель управления (только для групп)
+        HBox controlBar = null;
+        if (isGroup) {
+            controlBar = new HBox(8);
+            controlBar.setAlignment(Pos.CENTER_LEFT);
+            controlBar.setPadding(new Insets(8, 12, 8, 12));
+            controlBar.setStyle("-fx-background-color: #EEEEEE; -fx-border-color: #CCCCCC; -fx-border-width: 0 0 1 0;");
+
+            Button addMemberBtn = new Button("+ Добавить участника");
+            addMemberBtn.setStyle("-fx-background-color: #4CAF50; -fx-text-fill: white; -fx-background-radius: 15; -fx-padding: 5 12;");
+            addMemberBtn.setOnAction(e -> showAddMemberDialog(roomId, messageBox, scroll));
+
+            Button removeMemberBtn = new Button("- Удалить участника");
+            removeMemberBtn.setStyle("-fx-background-color: #f44336; -fx-text-fill: white; -fx-background-radius: 15; -fx-padding: 5 12;");
+            removeMemberBtn.setOnAction(e -> showRemoveMemberDialog(roomId, messageBox, scroll));
+
+            Button deleteChatBtn = new Button("🗑 Удалить чат");
+            deleteChatBtn.setStyle("-fx-background-color: #FF5722; -fx-text-fill: white; -fx-background-radius: 15; -fx-padding: 5 12;");
+            deleteChatBtn.setOnAction(e -> {
+                Alert confirm = new Alert(Alert.AlertType.CONFIRMATION,
+                        "Удалить чат \"" + roomName + "\"? Все сообщения будут потеряны!",
+                        ButtonType.YES, ButtonType.NO);
+                confirm.setHeaderText(null);
+                confirm.showAndWait().ifPresent(btn -> {
+                    if (btn == ButtonType.YES) {
+                        deleteChat(roomId);
+                        dialog.close();
+                        loadChats();
+                    }
+                });
+            });
+
+            controlBar.getChildren().addAll(addMemberBtn, removeMemberBtn, deleteChatBtn);
+        }
 
         // Поле ввода
         TextField inputField = new TextField();
@@ -250,7 +314,6 @@ public class ChatsController {
         sendBtn.setStyle("-fx-background-color: #FAA757; -fx-background-radius: 50;"
                 + " -fx-font-size: 14; -fx-padding: 6 12; -fx-cursor: hand;");
 
-        // WebSocket подключение
         connectWebSocket(roomId, messageBox, scroll);
 
         Runnable sendAction = () -> {
@@ -258,15 +321,10 @@ public class ChatsController {
             if (text.isBlank()) return;
 
             if (currentWs != null && currentWs.isOpen()) {
-
-                // Экранируем кавычки и спецсимволы в JSON
                 String escapedText = text.replace("\\", "\\\\")
                         .replace("\"", "\\\"")
                         .replace("\n", "\\n");
-
                 String json = String.format("{\"roomId\":\"%s\",\"content\":\"%s\"}", roomId, escapedText);
-
-                // Отправляем SEND фрейм
                 String sendFrame = "SEND\n" +
                         "destination:/app/chat\n" +
                         "content-type:application/json\n" +
@@ -274,9 +332,7 @@ public class ChatsController {
                         "\n" +
                         json +
                         "\u0000";
-
                 currentWs.send(sendFrame);
-                System.out.println(">>> Message sent: " + json);
                 inputField.clear();
             } else {
                 showError("Нет подключения к серверу");
@@ -291,12 +347,16 @@ public class ChatsController {
         inputBar.setPadding(new Insets(8));
         inputBar.setStyle("-fx-background-color: #EEEEEE;");
 
-        VBox root = new VBox(scroll, inputBar);
-        root.setPrefHeight(460);
+        VBox root = new VBox();
+        if (isGroup && controlBar != null) {
+            root.getChildren().addAll(controlBar, scroll, inputBar);
+        } else {
+            root.getChildren().addAll(scroll, inputBar);
+        }
+        root.setPrefHeight(500);
         dialog.getDialogPane().setContent(root);
         dialog.getDialogPane().setStyle("-fx-padding: 0;");
 
-        // При закрытии диалога — отключаем WebSocket
         dialog.setOnCloseRequest(e -> {
             if (currentWs != null) {
                 currentWs.close();
@@ -693,6 +753,260 @@ public class ChatsController {
         }
     }
 
+    // ─── Управление чатом ───────────────────────────────────────────────
+
+    private void showAddMemberDialog(String roomId, VBox messageBox, ScrollPane scroll) {
+        Dialog<ButtonType> dialog = new Dialog<>();
+        dialog.setTitle("Добавить участника");
+        dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
+
+        ComboBox<String> userCombo = new ComboBox<>();
+        userCombo.setPromptText("Выберите пользователя");
+        userCombo.setPrefWidth(250);
+
+        for (int i = 0; i < allUsernames.size(); i++) {
+            if (!allUserIds.get(i).equals(currentUserId)) {
+                userCombo.getItems().add(allUsernames.get(i));
+            }
+        }
+
+        VBox content = new VBox(10);
+        content.setPadding(new Insets(10));
+        content.getChildren().addAll(new Label("Выберите пользователя:"), userCombo);
+        dialog.getDialogPane().setContent(content);
+
+        dialog.showAndWait().ifPresent(btn -> {
+            if (btn == ButtonType.OK) {
+                String selected = userCombo.getSelectionModel().getSelectedItem();
+                if (selected != null) {
+                    int idx = allUsernames.indexOf(selected);
+                    if (idx >= 0) {
+                        addMemberToGroup(roomId, allUserIds.get(idx));
+                        messageBox.getChildren().clear();
+                        loadHistory(roomId, messageBox, scroll);
+                    }
+                }
+            }
+        });
+    }
+
+    private void showRemoveMemberDialog(String roomId, VBox messageBox, ScrollPane scroll) {
+        Dialog<ButtonType> dialog = new Dialog<>();
+        dialog.setTitle("Удалить участника");
+        dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
+
+        ComboBox<String> memberCombo = new ComboBox<>();
+        memberCombo.setPromptText("Выберите участника");
+        memberCombo.setPrefWidth(250);
+
+        loadMembersForGroup(roomId, memberCombo);
+
+        VBox content = new VBox(10);
+        content.setPadding(new Insets(10));
+        content.getChildren().addAll(new Label("Выберите участника для удаления:"), memberCombo);
+        dialog.getDialogPane().setContent(content);
+
+        dialog.showAndWait().ifPresent(btn -> {
+            if (btn == ButtonType.OK) {
+                String selected = memberCombo.getSelectionModel().getSelectedItem();
+                if (selected != null) {
+                    int idx = allUsernames.indexOf(selected);
+                    if (idx >= 0) {
+                        removeMemberFromGroup(roomId, allUserIds.get(idx));
+                        messageBox.getChildren().clear();
+                        loadHistory(roomId, messageBox, scroll);
+                    }
+                }
+            }
+        });
+    }
+
+    @FXML
+    protected void onOpenChatClick() {
+        if (selectedChatIndex < 0 || selectedChatIndex >= chatIds.size()) {
+            showError("Выберите чат");
+            return;
+        }
+        openChat(chatIds.get(selectedChatIndex), chatNames.get(selectedChatIndex),
+                chatTypes.get(selectedChatIndex).equals("GROUP"));
+    }
+
+    @FXML
+    protected void onDeleteChatClick() {
+        if (selectedChatIndex < 0 || selectedChatIndex >= chatIds.size()) {
+            showError("Выберите чат");
+            return;
+        }
+
+        String chatName = chatNames.get(selectedChatIndex);
+        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION,
+                "Удалить чат \"" + chatName + "\"?", ButtonType.YES, ButtonType.NO);
+        confirm.setHeaderText(null);
+        confirm.showAndWait().ifPresent(btn -> {
+            if (btn == ButtonType.YES) {
+                deleteChat(chatIds.get(selectedChatIndex));
+                loadChats();
+            }
+        });
+    }
+
+    private void deleteChat(String roomId) {
+        try {
+            // DELETE запрос на удаление чата (нужно добавить на сервере)
+            HttpRequest req = HttpRequest.newBuilder()
+                    .uri(URI.create("http://localhost:8080/chat/rooms/" + roomId))
+                    .header("Authorization", "Bearer " + Session.getToken())
+                    .DELETE()
+                    .build();
+            client.send(req, HttpResponse.BodyHandlers.ofString());
+        } catch (Exception e) {
+            showError("Ошибка удаления чата: " + e.getMessage());
+        }
+    }
+
+    @FXML
+    protected void onManageGroupChat() {
+        if (selectedChatIndex < 0 || selectedChatIndex >= chatIds.size()) {
+            showError("Выберите чат");
+            return;
+        }
+
+        String type = chatTypes.get(selectedChatIndex);
+        if (!type.equals("GROUP")) {
+            showError("Управление доступно только для групповых чатов");
+            return;
+        }
+
+        String roomId = chatIds.get(selectedChatIndex);
+        String roomName = chatNames.get(selectedChatIndex);
+
+        // Диалог управления группой
+        Dialog<ButtonType> dialog = new Dialog<>();
+        dialog.setTitle("Управление группой: " + roomName);
+        dialog.getDialogPane().getButtonTypes().addAll(ButtonType.CLOSE);
+
+        VBox content = new VBox(10);
+        content.setPadding(new Insets(10));
+        content.setPrefWidth(350);
+
+        // Добавить участника
+        TextField addField = new TextField();
+        addField.setPromptText("Никнейм пользователя");
+        Button addBtn = new Button("Добавить участника");
+        addBtn.setOnAction(e -> {
+            String username = addField.getText().trim();
+            if (username.isBlank()) return;
+
+            int idx = allUsernames.indexOf(username);
+            if (idx < 0) {
+                showError("Пользователь не найден");
+                return;
+            }
+            addMemberToGroup(roomId, allUserIds.get(idx));
+            addField.clear();
+            loadChats();
+            dialog.close();
+        });
+
+        // Удалить участника
+        ComboBox<String> memberCombo = new ComboBox<>();
+        Button removeBtn = new Button("Удалить участника");
+        removeBtn.setOnAction(e -> {
+            String selected = memberCombo.getSelectionModel().getSelectedItem();
+            if (selected == null) return;
+
+            int idx = allUsernames.indexOf(selected);
+            if (idx < 0) return;
+
+            Long userId = allUserIds.get(idx);
+            if (userId.equals(currentUserId)) {
+                showError("Нельзя удалить себя");
+                return;
+            }
+
+            removeMemberFromGroup(roomId, userId);
+            loadChats();
+            dialog.close();
+        });
+
+        loadMembersForGroup(roomId, memberCombo);
+
+        content.getChildren().addAll(
+                new Label("Добавить участника:"), addField, addBtn,
+                new Separator(),
+                new Label("Удалить участника:"), memberCombo, removeBtn
+        );
+
+        dialog.getDialogPane().setContent(content);
+        dialog.showAndWait();
+    }
+
+    private void addMemberToGroup(String roomId, Long userId) {
+        try {
+            HttpRequest req = HttpRequest.newBuilder()
+                    .uri(URI.create("http://localhost:8080/chat/group/" + roomId + "/member?userId=" + userId))
+                    .header("Authorization", "Bearer " + Session.getToken())
+                    .POST(HttpRequest.BodyPublishers.noBody())
+                    .build();
+            HttpResponse<String> resp = client.send(req, HttpResponse.BodyHandlers.ofString());
+            if (resp.statusCode() != 200) {
+                showError("Ошибка: " + resp.body());
+            }
+        } catch (Exception e) {
+            showError(e.getMessage());
+        }
+    }
+
+    private void removeMemberFromGroup(String roomId, Long userId) {
+        try {
+            HttpRequest req = HttpRequest.newBuilder()
+                    .uri(URI.create("http://localhost:8080/chat/group/" + roomId + "/member/" + userId))
+                    .header("Authorization", "Bearer " + Session.getToken())
+                    .DELETE()
+                    .build();
+            client.send(req, HttpResponse.BodyHandlers.ofString());
+        } catch (Exception e) {
+            showError(e.getMessage());
+        }
+    }
+
+    private void loadMembersForGroup(String roomId, ComboBox<String> combo) {
+        combo.getItems().clear();
+        try {
+            HttpRequest req = HttpRequest.newBuilder()
+                    .uri(URI.create("http://localhost:8080/chat/rooms/" + roomId))
+                    .header("Authorization", "Bearer " + Session.getToken())
+                    .GET()
+                    .build();
+            String body = client.send(req, HttpResponse.BodyHandlers.ofString()).body();
+
+            System.out.println("DEBUG room response: " + body);
+
+            // Парсим memberIds из ответа
+            Pattern memberPattern = Pattern.compile("\"memberIds\":\\[([^\\]]+)\\]");
+            Matcher memberMatcher = memberPattern.matcher(body);
+
+            if (memberMatcher.find()) {
+                String membersStr = memberMatcher.group(1);
+                String[] ids = membersStr.split(",");
+                for (String idStr : ids) {
+                    Long uid = Long.parseLong(idStr.trim());
+                    int idx = allUserIds.indexOf(uid);
+                    if (idx >= 0 && !uid.equals(currentUserId)) {
+                        combo.getItems().add(allUsernames.get(idx));
+                    }
+                }
+            }
+
+            if (combo.getItems().isEmpty()) {
+                combo.getItems().add("-- нет участников для удаления --");
+            }
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            showError("Ошибка загрузки участников: " + e.getMessage());
+        }
+    }
     // ─── Вкладки ─────────────────────────────────────────────────────────────
 
     @FXML protected void onTabAll()    { setTab(Tab.ALL); }
@@ -720,6 +1034,10 @@ public class ChatsController {
         } catch (Exception e) {
             showError("Ошибка навигации: " + e.getMessage());
         }
+    }
+
+    private void setSelectedChat(int index) {
+        selectedChatIndex = index;
     }
 
     private void showError(String msg) {

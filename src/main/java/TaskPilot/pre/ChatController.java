@@ -98,6 +98,29 @@ public class ChatController {
         return ResponseEntity.ok(messages);
     }
 
+    @DeleteMapping("/chat/rooms/{roomId}")
+    public ResponseEntity<Void> deleteChat(@PathVariable String roomId) {
+        Long currentUserId = getCurrentUserId();
+        ChatRoom room = chatRoomService.getRoom(roomId);
+
+        if (!room.getCreatorId().equals(currentUserId)) {
+            throw new SecurityException("Только создатель может удалить чат");
+        }
+
+        chatRoomService.deleteChat(roomId);
+        return ResponseEntity.ok().build();
+    }
+
+    @GetMapping("/chat/rooms/{roomId}")
+    public ResponseEntity<ChatRoom> getRoom(@PathVariable String roomId) {
+        Long currentUserId = getCurrentUserId();
+        ChatRoom room = chatRoomService.getRoom(roomId);
+        if (!room.isMember(currentUserId)) {
+            throw new SecurityException("Нет доступа");
+        }
+        return ResponseEntity.ok(room);
+    }
+
     public Long getCurrentUserId(){
         String username = SecurityContextHolder.getContext().getAuthentication().getName();
         return userRepository.findByUsername(username)

@@ -86,6 +86,13 @@ public class ChatRoomService {
         return chatRoomRepository.save(room);
     }
 
+    public void deleteChat(String roomId) {
+        if (!chatRoomRepository.existsById(roomId)) {
+            throw new IllegalArgumentException("Комната не найдена");
+        }
+        chatRoomRepository.deleteById(roomId);
+    }
+
     public List<ChatRoom> getUserRooms(Long userId){
         return chatRoomRepository.findByMemberIdsContaining(userId);
     }
