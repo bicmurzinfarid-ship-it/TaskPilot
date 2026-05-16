@@ -9,7 +9,7 @@
             stylesheets="@app.css">
 
     <top>
-        <HBox style="-fx-background-color: #FF9A2E; -fx-padding: 14 16;" alignment="CENTER">
+        <HBox style="-fx-background-color: #FAA030; -fx-padding: 18 16;" alignment="CENTER">
             <Label text="Task" style="-fx-font-size: 20; -fx-font-weight: bold; -fx-text-fill: #3D1A00;"/>
             <Label text="Pilot" style="-fx-font-size: 20; -fx-font-weight: bold; -fx-text-fill: white;"/>
         </HBox>
@@ -19,7 +19,7 @@
         <VBox style="-fx-background-color: #F5F0EB;">
 
             <HBox fx:id="tasksSectionRow"
-                  style="-fx-padding: 14 16; -fx-border-color: #CCCCCC; -fx-border-width: 0 0 1 0; -fx-cursor: hand;"
+                  style="-fx-padding: 18 16; -fx-border-color: #CCCCCC; -fx-border-width: 0 0 1 0; -fx-cursor: hand;"
                   alignment="CENTER_LEFT" onMouseClicked="#onTasksSectionClick">
                 <ImageView fx:id="tasksIcon" fitWidth="26" fitHeight="26" preserveRatio="true"/>
                 <Label text="  Задачи" style="-fx-font-size: 16;"/>

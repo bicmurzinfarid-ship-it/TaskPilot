@@ -61,9 +61,14 @@ public class LoginController {
                     usernameField.setDisable(false);
                     passwordField.setDisable(false);
                     if (response.statusCode() == 200) {
-                        String token = response.body()
-                                .replace("{\"token\":\"", "").replace("\"}", "");
+                        String body = response.body();
+                        java.util.regex.Matcher tm = java.util.regex.Pattern
+                                .compile("\"token\":\"([^\"]+)\"").matcher(body);
+                        java.util.regex.Matcher um = java.util.regex.Pattern
+                                .compile("\"userId\":(\\d+)").matcher(body);
+                        String token = tm.find() ? tm.group(1) : body;
                         Session.setToken(token);
+                        if (um.find()) Session.setUserId(Long.parseLong(um.group(1)));
                         try {
                             FXMLLoader loader = new FXMLLoader(getClass().getResource("main-view.fxml"));
                             Stage stage = (Stage) usernameField.getScene().getWindow();

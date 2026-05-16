@@ -15,6 +15,7 @@ import javafx.scene.image.ImageView;
 import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Rectangle;
+import javafx.stage.Modality;
 import javafx.stage.Stage;
 
 import java.net.URI;
@@ -26,7 +27,6 @@ import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -106,16 +106,21 @@ public class MainController {
             }
             List<Long> newIds = new ArrayList<>();
             List<String> newNames = new ArrayList<>();
-            Pattern blockPat = Pattern.compile("\\{(.*?)\"members\"", Pattern.DOTALL);
-            Matcher blockMatcher = blockPat.matcher(resp.body());
-            while (blockMatcher.find()) {
-                String block = blockMatcher.group(1);
-                if (!block.contains("\"creatorId\"")) continue;
-                Matcher idM = Pattern.compile("\"id\":(\\d+)").matcher(block);
-                Matcher nameM = Pattern.compile("\"name\":\"([^\"]+)\"").matcher(block);
-                if (idM.find() && nameM.find()) {
-                    newIds.add(Long.parseLong(idM.group(1)));
-                    newNames.add(nameM.group(1));
+            // Brace-depth parser: extracts each top-level JSON object correctly,
+            // immune to cross-contamination from nested member arrays
+            String body = resp.body();
+            int depth = 0, start = -1;
+            for (int i = 0; i < body.length(); i++) {
+                char c = body.charAt(i);
+                if (c == '{') { if (depth++ == 0) start = i; }
+                else if (c == '}' && --depth == 0 && start >= 0) {
+                    String obj = body.substring(start, i + 1);
+                    Matcher idM   = Pattern.compile("\"id\":(\\d+)").matcher(obj);
+                    Matcher nameM = Pattern.compile("\"name\":\"([^\"]+)\"").matcher(obj);
+                    if (idM.find() && nameM.find()) {
+                        newIds.add(Long.parseLong(idM.group(1)));
+                        newNames.add(nameM.group(1));
+                    }
                 }
             }
             Platform.runLater(() -> {
@@ -133,21 +138,7 @@ public class MainController {
     @FXML
     protected void onAddProjectClick() {
         loadAllUsers();
-
-        Dialog<Map.Entry<String, List<Long>>> dialog = buildCreateDialog();
-        dialog.showAndWait().ifPresent(entry -> {
-            String name = entry.getKey();
-            if (name.isBlank()) return;
-
-            Long projectId = createProject(name);
-            if (projectId == null) return;
-
-            for (Long userId : entry.getValue()) {
-                addMember(projectId, userId);
-            }
-
-            loadProjects();
-        });
+        showCreateProjectDialog();
     }
 
     private void loadAllUsers() {
@@ -173,61 +164,139 @@ public class MainController {
         }
     }
 
-    private Dialog<Map.Entry<String, List<Long>>> buildCreateDialog() {
-        Dialog<Map.Entry<String, List<Long>>> dialog = new Dialog<>();
-        dialog.setTitle("Новый проект");
+    private void showCreateProjectDialog() {
+        Stage dialog = new Stage();
+        dialog.initOwner(projectListView.getScene().getWindow());
+        dialog.initModality(Modality.APPLICATION_MODAL);
+        dialog.setResizable(false);
 
-        ButtonType createBtn = new ButtonType("Создать", ButtonBar.ButtonData.OK_DONE);
-        dialog.getDialogPane().getButtonTypes().addAll(createBtn, ButtonType.CANCEL);
+        // ─── Шапка ───────────────────────────────────────────────────────────
+        HBox header = new HBox();
+        header.setStyle("-fx-background-color: #FAA030; -fx-padding: 18 16;");
+        header.setAlignment(Pos.CENTER_LEFT);
+        Label headerLbl = new Label("Новый проект");
+        headerLbl.setStyle("-fx-font-size: 20; -fx-font-weight: bold; -fx-text-fill: white;");
+        Region hSpacer = new Region();
+        HBox.setHgrow(hSpacer, Priority.ALWAYS);
+        Button closeBtn = new Button("✕");
+        closeBtn.setStyle("-fx-background-color: transparent; -fx-text-fill: white;"
+                + " -fx-font-size: 15; -fx-cursor: hand; -fx-padding: 0 4;");
+        closeBtn.setOnAction(e -> dialog.close());
+        header.getChildren().addAll(headerLbl, hSpacer, closeBtn);
 
+        // ─── Название ────────────────────────────────────────────────────────
         TextField nameField = new TextField();
-        nameField.setPromptText("Название проекта");
+        nameField.setPromptText("Назовите проект...");
+        nameField.setStyle("-fx-background-color: #E8E8E8; -fx-background-radius: 10;"
+                + " -fx-border-color: transparent; -fx-padding: 10 14; -fx-font-size: 14;");
+        nameField.setMaxWidth(Double.MAX_VALUE);
+
+        // ─── Участники с чипами ───────────────────────────────────────────────
+        List<Long>   selIds   = new ArrayList<>();
+        List<String> selNames = new ArrayList<>();
+        FlowPane chips = new FlowPane(6, 6);
 
         TextField searchField = new TextField();
-        searchField.setPromptText("Никнейм участника");
-        Button addBtn = new Button("Добавить");
-        Label searchStatus = new Label();
+        searchField.setPromptText("Поиск пользователя...");
+        searchField.setStyle("-fx-background-color: #E8E8E8; -fx-background-radius: 10;"
+                + " -fx-border-color: transparent; -fx-padding: 8 12; -fx-font-size: 13;");
+        searchField.setMaxWidth(Double.MAX_VALUE);
 
-        List<Long> selectedIds = new ArrayList<>();
-        ObservableList<String> selectedNames = FXCollections.observableArrayList();
-        ListView<String> selectedList = new ListView<>(selectedNames);
-        selectedList.setPrefHeight(100);
+        ListView<String> suggestions = new ListView<>();
+        suggestions.setPrefHeight(110);
+        suggestions.setVisible(false);
+        suggestions.setManaged(false);
+        suggestions.setStyle("-fx-background-radius: 8; -fx-border-color: #D0D0D0;"
+                + " -fx-border-radius: 8; -fx-border-width: 1;");
 
-        addBtn.setOnAction(e -> {
-            String query = searchField.getText().trim();
-            if (query.isBlank()) return;
-            int i = allUsernames.indexOf(query);
-            if (i < 0) {
-                searchStatus.setText("Пользователь «" + query + "» не найден");
+        Runnable[] rebuildChips = {null};
+        rebuildChips[0] = () -> {
+            chips.getChildren().clear();
+            for (int i = 0; i < selNames.size(); i++) {
+                final int fi = i;
+                Label nameLbl = new Label(selNames.get(i));
+                nameLbl.setStyle("-fx-text-fill: white; -fx-font-size: 12;");
+                Button rm = new Button("✕");
+                rm.setStyle("-fx-background-color: transparent; -fx-text-fill: white;"
+                        + " -fx-font-size: 10; -fx-padding: 0 2; -fx-cursor: hand;");
+                rm.setOnAction(ev -> { selIds.remove(fi); selNames.remove(fi); rebuildChips[0].run(); });
+                HBox chip = new HBox(4, nameLbl, rm);
+                chip.setStyle("-fx-background-color: #FAA030; -fx-background-radius: 12; -fx-padding: 4 8;");
+                chip.setAlignment(Pos.CENTER_LEFT);
+                chips.getChildren().add(chip);
+            }
+        };
+
+        searchField.textProperty().addListener((obs, old, newVal) -> {
+            String q = newVal.trim().toLowerCase();
+            if (q.isEmpty()) {
+                suggestions.setVisible(false);
+                suggestions.setManaged(false);
                 return;
             }
+            List<String> filtered = new ArrayList<>();
+            for (String name : allUsernames) {
+                if (name.toLowerCase().contains(q) && !selNames.contains(name))
+                    filtered.add(name);
+            }
+            if (filtered.isEmpty()) {
+                suggestions.setVisible(false);
+                suggestions.setManaged(false);
+            } else {
+                suggestions.getItems().setAll(filtered);
+                suggestions.setVisible(true);
+                suggestions.setManaged(true);
+            }
+        });
+
+        suggestions.setOnMouseClicked(e -> {
+            String selected = suggestions.getSelectionModel().getSelectedItem();
+            if (selected == null) return;
+            int i = allUsernames.indexOf(selected);
+            if (i < 0) return;
             Long uid = allUserIds.get(i);
-            if (selectedIds.contains(uid)) {
-                searchStatus.setText("Уже добавлен");
-                return;
+            if (!selIds.contains(uid)) {
+                selIds.add(uid);
+                selNames.add(selected);
+                rebuildChips[0].run();
             }
-            selectedIds.add(uid);
-            selectedNames.add(query);
             searchField.clear();
-            searchStatus.setText("");
+            suggestions.setVisible(false);
+            suggestions.setManaged(false);
         });
 
-        VBox content = new VBox(8,
-                new Label("Название:"), nameField,
-                new Label("Добавить участников:"),
-                new HBox(5, searchField, addBtn),
-                searchStatus,
-                selectedList
+        VBox membersBox = new VBox(6, styledLabel("Участники"), searchField, suggestions, chips);
+        membersBox.setStyle("-fx-background-color: #F0F4FF; -fx-background-radius: 10;"
+                + " -fx-padding: 10 12; -fx-border-color: #C8D4F8; -fx-border-radius: 10; -fx-border-width: 1;");
+
+        // ─── Кнопка СОЗДАТЬ ───────────────────────────────────────────────────
+        Button createBtn = new Button("СОЗДАТЬ");
+        createBtn.setMaxWidth(Double.MAX_VALUE);
+        createBtn.setStyle("-fx-background-color: #FAA030; -fx-text-fill: white; -fx-font-weight: bold;"
+                + " -fx-font-size: 16; -fx-background-radius: 25; -fx-padding: 13 0; -fx-cursor: hand;");
+        createBtn.setOnAction(e -> {
+            String name = nameField.getText().trim();
+            if (name.isBlank()) { showError("Название не может быть пустым"); return; }
+            Long projectId = createProject(name);
+            if (projectId == null) return;
+            for (Long uid : selIds) addMember(projectId, uid);
+            dialog.close();
+            Thread.ofVirtual().start(this::loadProjects);
+        });
+
+        VBox content = new VBox(12,
+                styledLabel("Название проекта"), nameField,
+                membersBox,
+                createBtn
         );
-        content.setPrefWidth(300);
-        dialog.getDialogPane().setContent(content);
+        content.setPadding(new Insets(16, 20, 20, 20));
+        content.setStyle("-fx-background-color: #F5F0EB;");
 
-        dialog.setResultConverter(btn -> {
-            if (btn != createBtn) return null;
-            return Map.entry(nameField.getText().trim(), new ArrayList<>(selectedIds));
-        });
+        VBox root = new VBox(header, content);
+        root.setStyle("-fx-background-color: #F5F0EB;");
 
-        return dialog;
+        dialog.setScene(new Scene(root, 420, 380));
+        dialog.showAndWait();
     }
 
     private Long createProject(String name) {
@@ -281,38 +350,16 @@ public class MainController {
 
     private void showProjectDialog(Long projectId, String projectName) {
         ProjectDetails details = loadProjectDetails(projectId);
-
-        // Тимлид
-        String teamLeadName = "не назначен";
-        if (details.teamLeadId() != null) {
-            int tlIdx = details.memberIds().indexOf(details.teamLeadId());
-            if (tlIdx >= 0) teamLeadName = details.memberNames().get(tlIdx);
-        }
+        boolean isCreator = details.creatorId() != null
+                && details.creatorId().equals(Session.getUserId());
 
         // ─── Вкладка Информация ───────────────────────────────────────────────
-        VBox infoTab = new VBox(0);
-        infoTab.setStyle("-fx-background-color: #F5F0EB;");
+        ScrollPane infoScroll = new ScrollPane();
+        infoScroll.setFitToWidth(true);
+        infoScroll.setStyle("-fx-background-color: #F5F0EB; -fx-background: #F5F0EB; -fx-border-color: transparent;");
 
-        // Тимлид
-        infoTab.getChildren().add(makeInfoRow("Лидер", teamLeadName));
-        infoTab.getChildren().add(new Separator());
-
-        // Участники
-        for (String name : details.memberNames()) {
-            infoTab.getChildren().add(makeInfoRow("", name));
-        }
-        infoTab.getChildren().add(new Separator());
-
-        // Описание (пока статична)
-        Label descLabel = new Label("Описание");
-        descLabel.setStyle("-fx-font-size: 14; -fx-padding: 8 12 4 12;");
-        TextArea descArea = new TextArea();
-        descArea.setPromptText("Описание проекта...");
-        descArea.setPrefRowCount(3);
-        descArea.setEditable(false);
-        descArea.setStyle("-fx-background-color: #E0E0E0; -fx-background-radius: 8; -fx-padding: 6;");
-        VBox.setMargin(descArea, new javafx.geometry.Insets(0, 12, 12, 12));
-        infoTab.getChildren().addAll(descLabel, descArea);
+        VBox infoTab = buildInfoTab(projectId, details, isCreator);
+        infoScroll.setContent(infoTab);
 
         // ─── Вкладка Доска ────────────────────────────────────────────────────
         VBox boardTab = buildBoardTab(projectId, details);
@@ -323,7 +370,7 @@ public class MainController {
         chatTab.getChildren().add(new Label("Чат будет реализован позже"));
 
         // ─── TabPane ──────────────────────────────────────────────────────────
-        Tab tabInfo = new Tab("Информация", new ScrollPane(infoTab));
+        Tab tabInfo = new Tab("Информация", infoScroll);
         tabInfo.setClosable(false);
         Tab tabBoard = new Tab("Доска", boardTab);
         tabBoard.setClosable(false);
@@ -342,6 +389,86 @@ public class MainController {
         dialog.showAndWait();
     }
 
+    private VBox buildInfoTab(Long projectId, ProjectDetails details, boolean isCreator) {
+        VBox tab = new VBox(0);
+        tab.setStyle("-fx-background-color: #F5F0EB;");
+
+        // ─── Тимлид ───────────────────────────────────────────────────────────
+        String teamLeadName = "не назначен";
+        if (details.teamLeadId() != null) {
+            int tlIdx = details.memberIds().indexOf(details.teamLeadId());
+            if (tlIdx >= 0) teamLeadName = details.memberNames().get(tlIdx);
+        }
+        tab.getChildren().add(makeInfoRow("Лидер", teamLeadName));
+        tab.getChildren().add(new Separator());
+
+        // Управление тимлидом — только для создателя
+        if (isCreator) {
+            ComboBox<String> tlCombo = new ComboBox<>();
+            tlCombo.getItems().addAll(details.memberNames());
+            if (details.teamLeadId() != null) {
+                int cur = details.memberIds().indexOf(details.teamLeadId());
+                if (cur >= 0) tlCombo.getSelectionModel().select(cur);
+            }
+            tlCombo.setPromptText("Выбрать тимлида...");
+            tlCombo.setMaxWidth(Double.MAX_VALUE);
+            HBox.setHgrow(tlCombo, Priority.ALWAYS);
+
+            Button setBtn = new Button("Назначить");
+            setBtn.setStyle("-fx-background-color: #FAA030; -fx-text-fill: white;"
+                    + " -fx-background-radius: 8; -fx-padding: 6 12; -fx-cursor: hand;");
+
+            Button removeBtn = new Button("Снять");
+            removeBtn.setStyle("-fx-background-color: #E53935; -fx-text-fill: white;"
+                    + " -fx-background-radius: 8; -fx-padding: 6 12; -fx-cursor: hand;");
+            removeBtn.setDisable(details.teamLeadId() == null);
+
+            setBtn.setOnAction(e -> {
+                int i = tlCombo.getSelectionModel().getSelectedIndex();
+                if (i < 0) return;
+                setTeamLead(projectId, details.memberIds().get(i));
+                removeBtn.setDisable(false);
+                // обновить строку "Лидер" вверху
+                HBox leaderRow = (HBox) tab.getChildren().get(0);
+                Label nameLbl = (Label) ((HBox) leaderRow).getChildren().get(1);
+                nameLbl.setText(details.memberNames().get(i));
+            });
+
+            removeBtn.setOnAction(e -> {
+                removeTeamLead(projectId);
+                removeBtn.setDisable(true);
+                HBox leaderRow = (HBox) tab.getChildren().get(0);
+                Label nameLbl = (Label) ((HBox) leaderRow).getChildren().get(1);
+                nameLbl.setText("не назначен");
+            });
+
+            HBox tlRow = new HBox(8, tlCombo, setBtn, removeBtn);
+            tlRow.setAlignment(Pos.CENTER_LEFT);
+            tlRow.setStyle("-fx-padding: 8 12;");
+            tab.getChildren().add(tlRow);
+            tab.getChildren().add(new Separator());
+        }
+
+        // ─── Участники ────────────────────────────────────────────────────────
+        for (String name : details.memberNames()) {
+            tab.getChildren().add(makeInfoRow("", name));
+        }
+        tab.getChildren().add(new Separator());
+
+        // ─── Описание ─────────────────────────────────────────────────────────
+        Label descLabel = new Label("Описание");
+        descLabel.setStyle("-fx-font-size: 14; -fx-padding: 8 12 4 12;");
+        TextArea descArea = new TextArea();
+        descArea.setPromptText("Описание проекта...");
+        descArea.setPrefRowCount(3);
+        descArea.setEditable(false);
+        descArea.setStyle("-fx-background-color: #E0E0E0; -fx-background-radius: 8; -fx-padding: 6;");
+        VBox.setMargin(descArea, new javafx.geometry.Insets(0, 12, 12, 12));
+        tab.getChildren().addAll(descLabel, descArea);
+
+        return tab;
+    }
+
     private HBox makeInfoRow(String role, String name) {
         HBox row = new HBox(12);
         row.setStyle("-fx-padding: 10 16;");
@@ -349,7 +476,7 @@ public class MainController {
 
         // Иконка-аватар
         Label avatar = new Label("👤");
-        avatar.setStyle("-fx-background-color: #FF9A2E; -fx-background-radius: 50;"
+        avatar.setStyle("-fx-background-color: #FAA030; -fx-background-radius: 50;"
                 + " -fx-padding: 6 8; -fx-font-size: 14;");
 
         Label nameLbl = new Label(name);
@@ -372,7 +499,7 @@ public class MainController {
 
         // Кнопки
         Button addTaskBtn = new Button("+ Добавить задачу");
-        addTaskBtn.setStyle("-fx-background-color: #FF9A2E; -fx-background-radius: 20;"
+        addTaskBtn.setStyle("-fx-background-color: #FAA030; -fx-background-radius: 20;"
                 + " -fx-font-size: 13; -fx-padding: 6 16; -fx-text-fill: white;");
 
         ScrollPane scrollPane = new ScrollPane();
@@ -428,52 +555,68 @@ public class MainController {
     }
 
     private HBox buildTaskCard(String block, String title, String status, Long taskId, VBox taskList) {
-        // Parse importance and deadline for eisenhower colors
-        int importance = 3;
-        Matcher impM = Pattern.compile("\"importance\":(\\d+)").matcher(block);
-        if (impM.find()) importance = Integer.parseInt(impM.group(1));
-
         String deadlineStr = null;
         Matcher dlM = Pattern.compile("\"deadline\":\"([^\"]+)\"").matcher(block);
         if (dlM.find()) deadlineStr = dlM.group(1);
 
-        long hoursLeft = deadlineStr != null ? ChronoUnit.HOURS.between(
-                LocalDateTime.now(),
-                LocalDateTime.parse(deadlineStr, DateTimeFormatter.ISO_LOCAL_DATE_TIME)) : Long.MAX_VALUE;
-        boolean urgent = hoursLeft <= 48;
-        boolean important = importance >= 3;
+        String quadrant = null;
+        Matcher qM = Pattern.compile("\"eisenhowerQuadrant\":\"([^\"]+)\"").matcher(block);
+        if (qM.find()) quadrant = qM.group(1);
 
-        String stripeColor = eisenhowerBg(urgent, important);
+        int importance = 2;
+        Matcher impM = Pattern.compile("\"importance\":(\\d+)").matcher(block);
+        if (impM.find()) importance = Integer.parseInt(impM.group(1));
 
-        // Left color stripe
-        Rectangle stripe = new Rectangle(5, 44);
+        boolean overdue = false;
+        if (deadlineStr != null) {
+            try {
+                overdue = LocalDateTime.parse(deadlineStr, DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+                        .isBefore(LocalDateTime.now());
+            } catch (Exception ignored) {}
+        }
+
+        // Фон карточки: READY — зелёный, просрочено — тёмно-красный, иначе — Eisenhower
+        String cardBg;
+        String textColor;
+        if ("READY".equals(status)) {
+            cardBg = "#43A047"; textColor = "white";
+        } else if (overdue) {
+            cardBg = "#B71C1C"; textColor = "white";
+        } else {
+            cardBg = boardEisenhowerColor(quadrant); textColor = "#1A1A1A";
+        }
+
+        // Полоска статуса слева
+        String stripeColor = switch (status) {
+            case "READY"        -> "#2E7D32";
+            case "DEVELOPMENT"  -> "#1565C0";
+            default             -> "#757575";
+        };
+        Rectangle stripe = new Rectangle(5, 50);
         stripe.setFill(Color.web(stripeColor));
-        stripe.setArcWidth(5); stripe.setArcHeight(5);
 
-        // Stars for importance
-        Label starsLbl = new Label("★".repeat(importance) + "☆".repeat(5 - importance));
-        starsLbl.setStyle("-fx-font-size: 10; -fx-text-fill: #FF9A2E;");
+        int impClamped = Math.min(Math.max(importance, 1), 3);
+        Label starsLbl = new Label("★".repeat(impClamped) + "☆".repeat(3 - impClamped));
+        starsLbl.setStyle("-fx-font-size: 10; -fx-text-fill: "
+                + ("white".equals(textColor) ? "rgba(255,255,255,0.8)" : "#FAA030") + ";");
 
         Label titleLbl = new Label(title);
-        titleLbl.setStyle("-fx-font-size: 14; -fx-font-weight: bold;");
         titleLbl.setMaxWidth(Double.MAX_VALUE);
+        titleLbl.setWrapText(false);
+        titleLbl.setStyle("-fx-font-size: 13; -fx-font-weight: bold; -fx-text-fill: " + textColor + ";");
 
         Label deadlineLbl = new Label(formatDeadline(deadlineStr));
-        deadlineLbl.setStyle("-fx-font-size: 11; -fx-text-fill: #888;");
+        deadlineLbl.setStyle("-fx-font-size: 11; -fx-text-fill: "
+                + ("white".equals(textColor) ? "rgba(255,255,255,0.75)" : "#888888") + ";");
 
         VBox textCol = new VBox(2, titleLbl, starsLbl, deadlineLbl);
+        textCol.setMaxWidth(Double.MAX_VALUE);
         HBox.setHgrow(textCol, Priority.ALWAYS);
 
-        String statusIcon = switch (status) {
-            case "READY" -> "✅";
-            case "DEVELOPMENT" -> "🔄";
-            default -> "⬜";
-        };
-        Label statusLbl = new Label(statusIcon);
-        statusLbl.setStyle("-fx-font-size: 14;");
-
         Button delBtn = new Button("✕");
-        delBtn.setStyle("-fx-background-color: transparent; -fx-text-fill: #888; -fx-font-size: 12;");
+        delBtn.setStyle("-fx-background-color: transparent; -fx-text-fill: "
+                + ("white".equals(textColor) ? "rgba(255,255,255,0.7)" : "#AAAAAA")
+                + "; -fx-font-size: 12; -fx-cursor: hand;");
         delBtn.setOnAction(e -> {
             deleteTask(taskId);
             taskIds.remove(taskId);
@@ -481,27 +624,32 @@ public class MainController {
                 node instanceof HBox hb && hb.getUserData() != null && hb.getUserData().equals(taskId));
         });
 
-        HBox card = new HBox(0, stripe);
-        HBox inner = new HBox(10, statusLbl, textCol, delBtn);
+        HBox inner = new HBox(10, textCol, delBtn);
         inner.setAlignment(Pos.CENTER_LEFT);
         inner.setPadding(new Insets(8, 12, 8, 10));
         inner.setMaxWidth(Double.MAX_VALUE);
         HBox.setHgrow(inner, Priority.ALWAYS);
-        card.getChildren().add(inner);
+
+        HBox card = new HBox(0, stripe, inner);
         card.setUserData(taskId);
         card.setAlignment(Pos.CENTER_LEFT);
-        card.setStyle("-fx-background-color: white; -fx-background-radius: 10;"
-                + " -fx-border-color: #E5E0DA; -fx-border-radius: 10; -fx-border-width: 1;"
-                + " -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.05), 4, 0, 0, 1); -fx-cursor: hand;");
         card.setMaxWidth(Double.MAX_VALUE);
+        card.setStyle("-fx-background-color: " + cardBg + "; -fx-background-radius: 10;"
+                + " -fx-border-color: rgba(0,0,0,0.08); -fx-border-radius: 10; -fx-border-width: 1;"
+                + " -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.06), 4, 0, 0, 1); -fx-cursor: hand;");
         return card;
     }
 
-    private String eisenhowerBg(boolean urgent, boolean important) {
-        if (urgent && important) return "#E74C3C";
-        if (!urgent && important) return "#3498DB";
-        if (urgent) return "#F1C40F";
-        return "#95A5A6";
+    private String boardEisenhowerColor(String quadrant) {
+        if (quadrant == null || quadrant.isEmpty()) return "#F5F5F5";
+        return switch (quadrant) {
+            case "URGENT_IMPORTANT"              -> "#FFCDD2";
+            case "URGENT_SOMEWHAT_IMPORTANT"     -> "#FFE0B2";
+            case "URGENT_NOT_IMPORTANT"          -> "#FFF9C4";
+            case "NOT_URGENT_IMPORTANT"          -> "#BBDEFB";
+            case "NOT_URGENT_SOMEWHAT_IMPORTANT" -> "#E1F5FE";
+            default                              -> "#F5F5F5";
+        };
     }
 
     private String formatDeadline(String deadlineStr) {
@@ -518,50 +666,150 @@ public class MainController {
     private void showAddTaskDialog(Long projectId,
                                    List<Long> memberIds, List<String> memberNames,
                                    ListView<String> tasksView) {
-        Dialog<ButtonType> dialog = new Dialog<>();
-        dialog.setTitle("Новая задача");
-        ButtonType addBtnType = new ButtonType("ДОБАВИТЬ", ButtonBar.ButtonData.OK_DONE);
-        dialog.getDialogPane().getButtonTypes().addAll(addBtnType, ButtonType.CANCEL);
+        loadAllUsers();
 
-        // Style the OK button after dialog pane is shown
-        dialog.getDialogPane().lookupButton(addBtnType).setStyle(
-                "-fx-background-color: #FF9A2E; -fx-text-fill: white; -fx-font-weight: bold;"
-                + " -fx-background-radius: 10; -fx-font-size: 13; -fx-padding: 8 24;");
+        Stage dialog = new Stage();
+        dialog.initOwner(rootPane.getScene().getWindow());
+        dialog.initModality(Modality.APPLICATION_MODAL);
+        dialog.setResizable(false);
 
+        // ─── Шапка ───────────────────────────────────────────────────────────
+        HBox header = new HBox();
+        header.setStyle("-fx-background-color: #FAA030; -fx-padding: 18 16;");
+        header.setAlignment(Pos.CENTER_LEFT);
+        Label headerLbl = new Label("Новая Задача");
+        headerLbl.setStyle("-fx-font-size: 20; -fx-font-weight: bold; -fx-text-fill: white;");
+        Region hSpacer = new Region();
+        HBox.setHgrow(hSpacer, Priority.ALWAYS);
+        Button closeBtn = new Button("✕");
+        closeBtn.setStyle("-fx-background-color: transparent; -fx-text-fill: white;"
+                + " -fx-font-size: 15; -fx-cursor: hand; -fx-padding: 0 4;");
+        closeBtn.setOnAction(e -> dialog.close());
+        header.getChildren().addAll(headerLbl, hSpacer, closeBtn);
+
+        // ─── Название / Описание ──────────────────────────────────────────────
         TextField titleField = new TextField();
-        titleField.setPromptText("Название задачи");
-        titleField.getStyleClass().add("auth-field");
+        titleField.setPromptText("Назовите свою задачу...");
+        titleField.setStyle("-fx-background-color: #E8E8E8; -fx-background-radius: 10;"
+                + " -fx-border-color: transparent; -fx-padding: 10 14; -fx-font-size: 14;");
+        titleField.setMaxWidth(Double.MAX_VALUE);
 
         TextArea descField = new TextArea();
-        descField.setPromptText("Описание (необязательно)");
+        descField.setPromptText("Опишите её...");
         descField.setPrefRowCount(3);
-        descField.setStyle("-fx-background-color: #FAFAFA; -fx-background-radius: 10;"
-                + " -fx-border-color: #E0E0E0; -fx-border-radius: 10; -fx-border-width: 1.5; -fx-padding: 8 12;");
+        descField.setStyle("-fx-background-color: #E8E8E8; -fx-background-radius: 10;"
+                + " -fx-border-color: transparent; -fx-padding: 10 14; -fx-font-size: 13;");
 
-        ObservableList<String> assigneeOptions = FXCollections.observableArrayList();
-        assigneeOptions.add("— не назначен —");
-        assigneeOptions.addAll(memberNames);
-        ComboBox<String> assigneeCombo = new ComboBox<>(assigneeOptions);
-        assigneeCombo.getSelectionModel().selectFirst();
-        assigneeCombo.setMaxWidth(Double.MAX_VALUE);
+        // ─── Исполнители (множественный выбор с чипами) ───────────────────────
+        List<Long>   selIds   = new ArrayList<>();
+        List<String> selNames = new ArrayList<>();
+        FlowPane chips = new FlowPane(6, 6);
 
-        DatePicker deadlinePicker = new DatePicker();
-        deadlinePicker.setPromptText("Дедлайн (необязательно)");
-        deadlinePicker.setMaxWidth(Double.MAX_VALUE);
+        TextField searchField = new TextField();
+        searchField.setPromptText("Поиск пользователя...");
+        searchField.setStyle("-fx-background-color: #E8E8E8; -fx-background-radius: 10;"
+                + " -fx-border-color: transparent; -fx-padding: 8 12; -fx-font-size: 13;");
+        searchField.setMaxWidth(Double.MAX_VALUE);
 
-        // Star importance buttons (1–5)
-        int[] importanceHolder = {3};
-        Label[] stars = new Label[5];
-        HBox starsBox = new HBox(4);
-        starsBox.setAlignment(Pos.CENTER_LEFT);
-        Runnable refreshStars = () -> {
-            for (int i = 0; i < 5; i++) {
-                stars[i].setText(i < importanceHolder[0] ? "★" : "☆");
-                stars[i].setStyle("-fx-font-size: 22; -fx-text-fill: "
-                        + (i < importanceHolder[0] ? "#FF9A2E" : "#CCCCCC") + "; -fx-cursor: hand;");
+        ListView<String> suggestions = new ListView<>();
+        suggestions.setPrefHeight(110);
+        suggestions.setVisible(false);
+        suggestions.setManaged(false);
+        suggestions.setStyle("-fx-background-radius: 8; -fx-border-color: #D0D0D0;"
+                + " -fx-border-radius: 8; -fx-border-width: 1;");
+
+        Runnable[] rebuildChips = {null};
+        rebuildChips[0] = () -> {
+            chips.getChildren().clear();
+            for (int i = 0; i < selNames.size(); i++) {
+                final int fi = i;
+                Label nameLbl = new Label(selNames.get(i));
+                nameLbl.setStyle("-fx-text-fill: white; -fx-font-size: 12;");
+                Button rm = new Button("✕");
+                rm.setStyle("-fx-background-color: transparent; -fx-text-fill: white;"
+                        + " -fx-font-size: 10; -fx-padding: 0 2; -fx-cursor: hand;");
+                rm.setOnAction(ev -> { selIds.remove(fi); selNames.remove(fi); rebuildChips[0].run(); });
+                HBox chip = new HBox(4, nameLbl, rm);
+                chip.setStyle("-fx-background-color: #FAA030; -fx-background-radius: 12; -fx-padding: 4 8;");
+                chip.setAlignment(Pos.CENTER_LEFT);
+                chips.getChildren().add(chip);
             }
         };
-        for (int i = 0; i < 5; i++) {
+
+        searchField.textProperty().addListener((obs, old, newVal) -> {
+            String q = newVal.trim().toLowerCase();
+            if (q.isEmpty()) {
+                suggestions.setVisible(false);
+                suggestions.setManaged(false);
+                return;
+            }
+            List<String> filtered = new ArrayList<>();
+            for (String name : allUsernames) {
+                if (name.toLowerCase().contains(q) && !selNames.contains(name))
+                    filtered.add(name);
+            }
+            if (filtered.isEmpty()) {
+                suggestions.setVisible(false);
+                suggestions.setManaged(false);
+            } else {
+                suggestions.getItems().setAll(filtered);
+                suggestions.setVisible(true);
+                suggestions.setManaged(true);
+            }
+        });
+
+        suggestions.setOnMouseClicked(e -> {
+            String selected = suggestions.getSelectionModel().getSelectedItem();
+            if (selected == null) return;
+            int i = allUsernames.indexOf(selected);
+            if (i < 0) return;
+            Long uid = allUserIds.get(i);
+            if (!selIds.contains(uid)) {
+                selIds.add(uid);
+                selNames.add(selected);
+                rebuildChips[0].run();
+            }
+            searchField.clear();
+            suggestions.setVisible(false);
+            suggestions.setManaged(false);
+        });
+
+        VBox assigneesBox = new VBox(6, styledLabel("Исполнители"), searchField, suggestions, chips);
+        assigneesBox.setStyle("-fx-background-color: #F0F4FF; -fx-background-radius: 10;"
+                + " -fx-padding: 10 12; -fx-border-color: #C8D4F8; -fx-border-radius: 10; -fx-border-width: 1;");
+
+        // ─── Дедлайн: дата + часы + минуты ───────────────────────────────────
+        DatePicker deadlinePicker = new DatePicker();
+        deadlinePicker.setPromptText("Дата");
+        HBox.setHgrow(deadlinePicker, Priority.ALWAYS);
+
+        Spinner<Integer> hoursSpinner = new Spinner<>(0, 23, 23);
+        hoursSpinner.setEditable(true);
+        hoursSpinner.setPrefWidth(68);
+
+        Label colonLbl = new Label(":");
+        colonLbl.setStyle("-fx-font-size: 16; -fx-font-weight: bold; -fx-padding: 0 0 2 0;");
+
+        Spinner<Integer> minsSpinner = new Spinner<>(0, 59, 59);
+        minsSpinner.setEditable(true);
+        minsSpinner.setPrefWidth(68);
+
+        HBox deadlineRow = new HBox(8, deadlinePicker, hoursSpinner, colonLbl, minsSpinner);
+        deadlineRow.setAlignment(Pos.CENTER_LEFT);
+
+        // ─── Звёзды важности ─────────────────────────────────────────────────
+        int[] importanceHolder = {2};
+        Label[] stars = new Label[3];
+        HBox starsBox = new HBox(6);
+        starsBox.setAlignment(Pos.CENTER_LEFT);
+        Runnable refreshStars = () -> {
+            for (int i = 0; i < 3; i++) {
+                stars[i].setText(i < importanceHolder[0] ? "★" : "☆");
+                stars[i].setStyle("-fx-font-size: 28; -fx-text-fill: "
+                        + (i < importanceHolder[0] ? "#FAA030" : "#CCCCCC") + "; -fx-cursor: hand;");
+            }
+        };
+        for (int i = 0; i < 3; i++) {
             stars[i] = new Label();
             final int val = i + 1;
             stars[i].setOnMouseClicked(e -> { importanceHolder[0] = val; refreshStars.run(); });
@@ -569,44 +817,65 @@ public class MainController {
         }
         refreshStars.run();
 
-        VBox content = new VBox(10,
-                styledLabel("Название"), titleField,
-                styledLabel("Описание"), descField,
-                styledLabel("Исполнитель"), assigneeCombo,
-                styledLabel("Дедлайн"), deadlinePicker,
-                styledLabel("Важность"), starsBox
-        );
-        content.setPrefWidth(360);
-        content.setPadding(new Insets(4, 2, 4, 2));
-        dialog.getDialogPane().setContent(content);
-        dialog.getDialogPane().setStyle("-fx-background-color: #F5F0EB;");
-        dialog.setResultConverter(btn -> btn);
-
-        dialog.showAndWait().ifPresent(btn -> {
-            if (btn != addBtnType) return;
+        // ─── Кнопка ДОБАВИТЬ ─────────────────────────────────────────────────
+        Button addBtn = new Button("ДОБАВИТЬ");
+        addBtn.setMaxWidth(Double.MAX_VALUE);
+        addBtn.setStyle("-fx-background-color: #FAA030; -fx-text-fill: white; -fx-font-weight: bold;"
+                + " -fx-font-size: 16; -fx-background-radius: 25; -fx-padding: 13 0; -fx-cursor: hand;");
+        addBtn.setOnAction(e -> {
             String title = titleField.getText().trim();
             if (title.isBlank()) { showError("Название не может быть пустым"); return; }
 
-            int aIdx = assigneeCombo.getSelectionModel().getSelectedIndex();
-            Long assigneeId = aIdx > 0 ? memberIds.get(aIdx - 1) : null;
+            // Дедлайн с часами и минутами
+            String deadline = null;
+            if (deadlinePicker.getValue() != null) {
+                deadline = deadlinePicker.getValue()
+                        + "T" + String.format("%02d", hoursSpinner.getValue())
+                        + ":" + String.format("%02d", minsSpinner.getValue()) + ":00";
+            }
 
-            String deadline = deadlinePicker.getValue() != null
-                    ? deadlinePicker.getValue() + "T23:59:00" : null;
-
-            createProjectTask(projectId, title,
-                    descField.getText().trim(),
-                    assigneeId, deadline,
-                    importanceHolder[0]);
+            String desc = descField.getText().trim();
+            int imp = importanceHolder[0];
+            if (selIds.isEmpty()) {
+                createProjectTask(projectId, title, desc, null, deadline, imp);
+            } else {
+                for (Long aid : selIds) {
+                    createProjectTask(projectId, title, desc, aid, deadline, imp);
+                }
+            }
+            dialog.close();
         });
+
+        VBox content = new VBox(10,
+                styledLabel("Назовите свою задачу"), titleField,
+                styledLabel("Опишите её"), descField,
+                assigneesBox,
+                styledLabel("Дедлайн"), deadlineRow,
+                styledLabel("Важность"), starsBox,
+                addBtn
+        );
+        content.setPadding(new Insets(16, 20, 20, 20));
+        content.setStyle("-fx-background-color: #F5F0EB;");
+
+        ScrollPane sp = new ScrollPane(content);
+        sp.setFitToWidth(true);
+        sp.setStyle("-fx-background-color: #F5F0EB; -fx-background: #F5F0EB; -fx-border-color: transparent;");
+
+        VBox root = new VBox(header, sp);
+        root.setStyle("-fx-background-color: #F5F0EB;");
+
+        dialog.setScene(new Scene(root, 420, 640));
+        dialog.showAndWait();
     }
 
     private Label styledLabel(String text) {
         Label lbl = new Label(text);
-        lbl.setStyle("-fx-font-size: 12; -fx-text-fill: #888; -fx-font-weight: bold;");
+        lbl.setStyle("-fx-font-size: 13; -fx-text-fill: #666; -fx-font-weight: bold;");
         return lbl;
     }
 
-    private void createProjectTask(Long projectId, String title, String description,
+
+private void createProjectTask(Long projectId, String title, String description,
                                    Long assigneeId, String deadline, Integer importance) {
         try {
             StringBuilder json = new StringBuilder("{");
@@ -665,7 +934,7 @@ public class MainController {
         showManageDialog(projectIds.get(idx));
     }
 
-    private record ProjectDetails(Long teamLeadId, List<Long> memberIds, List<String> memberNames) {}
+    private record ProjectDetails(Long creatorId, Long teamLeadId, List<Long> memberIds, List<String> memberNames) {}
 
     private ProjectDetails loadProjectDetails(Long projectId) {
         try {
@@ -675,6 +944,10 @@ public class MainController {
                     .GET()
                     .build();
             String body = client.send(req, HttpResponse.BodyHandlers.ofString()).body();
+
+            Long creatorId = null;
+            Matcher crm = Pattern.compile("\"creatorId\":(\\d+)").matcher(body);
+            if (crm.find()) creatorId = Long.parseLong(crm.group(1));
 
             Long teamLeadId = null;
             Matcher tlm = Pattern.compile("\"teamLeadId\":(\\d+)").matcher(body);
@@ -691,10 +964,10 @@ public class MainController {
                     memberNames.add(mm.group(2));
                 }
             }
-            return new ProjectDetails(teamLeadId, memberIds, memberNames);
+            return new ProjectDetails(creatorId, teamLeadId, memberIds, memberNames);
         } catch (Exception e) {
             showError("Ошибка загрузки данных проекта: " + e.getMessage());
-            return new ProjectDetails(null, new ArrayList<>(), new ArrayList<>());
+            return new ProjectDetails(null, null, new ArrayList<>(), new ArrayList<>());
         }
     }
 
@@ -849,7 +1122,7 @@ public class MainController {
         confirm.showAndWait().ifPresent(btn -> {
             if (btn == ButtonType.YES) {
                 deleteProject(projectIds.get(idx));
-                loadProjects();
+                Thread.ofVirtual().start(this::loadProjects);
             }
         });
     }

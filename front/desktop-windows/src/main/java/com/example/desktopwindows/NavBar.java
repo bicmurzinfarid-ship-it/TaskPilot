@@ -19,9 +19,10 @@ public class NavBar {
                              Runnable onChats, Runnable onSettings) {
         VBox bar = new VBox(4);
         bar.setAlignment(Pos.TOP_CENTER);
-        bar.setStyle("-fx-background-color: #FF9A2E; -fx-padding: 10 4;");
-        bar.setMinWidth(82);
-        bar.setMaxWidth(82);
+        bar.setStyle("-fx-background-color: #FAA030; -fx-padding: 10 4;" +
+                "-fx-border-color: rgba(0,0,0,0.18); -fx-border-width: 1.5 0 0 0;");
+        bar.setMinWidth(120);
+        bar.setMaxWidth(120);
 
         bar.getChildren().addAll(
                 makeBtn("nav_home.png",     "Главная",   activePage == Page.HOME,     onHome),
@@ -47,9 +48,12 @@ public class NavBar {
                 "-fx-text-fill: #3D1A00;" +
                 "-fx-cursor: hand;" +
                 "-fx-background-radius: 10;" +
+                "-fx-border-radius: 10;" +
+                "-fx-border-color: rgba(255,255,255,0.28);" +
+                "-fx-border-width: 1;" +
                 "-fx-padding: 8 4;" +
-                "-fx-min-width: 74;" +
-                "-fx-max-width: 74;" +
+                "-fx-min-width: 112;" +
+                "-fx-max-width: 112;" +
                 "-fx-alignment: center;"
         );
 

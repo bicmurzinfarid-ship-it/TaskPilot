@@ -8,6 +8,7 @@ import javafx.geometry.Pos;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
+import javafx.stage.Modality;
 import javafx.stage.Stage;
 
 import java.net.URI;
@@ -17,6 +18,7 @@ import java.net.http.HttpResponse;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
@@ -37,8 +39,10 @@ public class TasksController {
     private final List<String> titles     = new ArrayList<>();
     private final List<String> statuses   = new ArrayList<>();
     private final List<String> deadlines  = new ArrayList<>();
-    private final List<Long>   assigneeIds = new ArrayList<>();
-    private final List<Long>   creatorIds  = new ArrayList<>();
+    private final List<Long>   assigneeIds  = new ArrayList<>();
+    private final List<Long>   creatorIds   = new ArrayList<>();
+    private final List<Integer> importances = new ArrayList<>();
+    private final List<String>  quadrants   = new ArrayList<>();
 
     private Long currentUserId = null;
 
@@ -48,8 +52,8 @@ public class TasksController {
     // Стили вкладок
     private static final String ACTIVE_STYLE =
             "-fx-background-color: transparent; -fx-font-size: 14; " +
-            "-fx-text-fill: #FF9A2E; -fx-font-weight: bold; " +
-            "-fx-border-color: #FF9A2E; -fx-border-width: 0 0 2 0;";
+            "-fx-text-fill: #FAA030; -fx-font-weight: bold; " +
+            "-fx-border-color: #FAA030; -fx-border-width: 0 0 2 0;";
     private static final String INACTIVE_STYLE =
             "-fx-background-color: transparent; -fx-font-size: 14; -fx-text-fill: #555;";
 
@@ -103,36 +107,15 @@ public class TasksController {
 
     private void loadTasks() {
         ids.clear(); titles.clear(); statuses.clear();
-        deadlines.clear(); assigneeIds.clear(); creatorIds.clear();
+        deadlines.clear(); assigneeIds.clear(); creatorIds.clear(); importances.clear(); quadrants.clear();
 
         try {
-            // Получаем все проекты пользователя
-            HttpRequest projReq = HttpRequest.newBuilder()
-                    .uri(URI.create("http://localhost:8080/project"))
+            HttpRequest req = HttpRequest.newBuilder()
+                    .uri(URI.create("http://localhost:8080/task"))
                     .header("Authorization", "Bearer " + Session.getToken())
                     .GET().build();
-            String projBody = client.send(projReq, HttpResponse.BodyHandlers.ofString()).body();
-
-            // Собираем id проектов
-            List<Long> myProjectIds = new ArrayList<>();
-            Pattern blockPat = Pattern.compile("\\{(.*?)\"members\"", Pattern.DOTALL);
-            Matcher blockM = blockPat.matcher(projBody);
-            while (blockM.find()) {
-                String block = blockM.group(1);
-                if (!block.contains("\"creatorId\"")) continue;
-                Matcher idM = Pattern.compile("\"id\":(\\d+)").matcher(block);
-                if (idM.find()) myProjectIds.add(Long.parseLong(idM.group(1)));
-            }
-
-            // Загружаем задачи из каждого проекта
-            for (Long pid : myProjectIds) {
-                HttpRequest taskReq = HttpRequest.newBuilder()
-                        .uri(URI.create("http://localhost:8080/project/" + pid + "/task"))
-                        .header("Authorization", "Bearer " + Session.getToken())
-                        .GET().build();
-                String taskBody = client.send(taskReq, HttpResponse.BodyHandlers.ofString()).body();
-                parseTasksFromBody(taskBody);
-            }
+            String body = client.send(req, HttpResponse.BodyHandlers.ofString()).body();
+            parseTasksFromBody(body);
         } catch (Exception e) {
             showError("Ошибка загрузки задач: " + e.getMessage());
         }
@@ -151,6 +134,8 @@ public class TasksController {
             Matcher assigneeM = Pattern.compile("\"assigneeId\":(\\d+)").matcher(block);
             Matcher creatorM  = Pattern.compile("\"creatorId\":(\\d+)").matcher(block);
 
+            Matcher importanceM = Pattern.compile("\"importance\":(\\d+)").matcher(block);
+            Matcher quadrantM   = Pattern.compile("\"eisenhowerQuadrant\":\"([^\"]+)\"").matcher(block);
             if (!idM.find() || !titleM.find()) continue;
             ids.add(Long.parseLong(idM.group(1)));
             titles.add(titleM.group(1));
@@ -158,6 +143,8 @@ public class TasksController {
             deadlines.add(deadlineM.find() ? deadlineM.group(1) : null);
             assigneeIds.add(assigneeM.find() ? Long.parseLong(assigneeM.group(1)) : null);
             creatorIds.add(creatorM.find() ? Long.parseLong(creatorM.group(1)) : null);
+            importances.add(importanceM.find() ? Integer.parseInt(importanceM.group(1)) : 3);
+            quadrants.add(quadrantM.find() ? quadrantM.group(1) : null);
         }
     }
 
@@ -171,10 +158,12 @@ public class TasksController {
             Long creator  = creatorIds.get(i);
 
             boolean show = switch (currentTab) {
-                case RECENT   -> true;
-                case TO_ME    -> currentUserId != null && currentUserId.equals(assignee);
-                case BY_ME    -> currentUserId != null && currentUserId.equals(creator)
-                                  && !currentUserId.equals(assignee);
+                case RECENT -> currentUserId == null
+                        || currentUserId.equals(creator)
+                        || currentUserId.equals(assignee);
+                case TO_ME  -> currentUserId != null && currentUserId.equals(assignee);
+                case BY_ME  -> currentUserId != null && currentUserId.equals(creator)
+                                && !currentUserId.equals(assignee);
             };
             if (!show) continue;
 
@@ -191,21 +180,15 @@ public class TasksController {
     private HBox buildCard(int i) {
         String status   = statuses.get(i);
         String deadline = deadlines.get(i);
+        String quadrant = i < quadrants.size() ? quadrants.get(i) : null;
         boolean overdue = false;
-        if (deadline != null) {
+        if (deadline != null && !"READY".equals(status)) {
             try {
-                LocalDate d = LocalDateTime.parse(deadline,
-                        DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss")).toLocalDate();
-                overdue = d.isBefore(LocalDate.now()) && !"READY".equals(status);
+                overdue = LocalDateTime.parse(deadline, DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss"))
+                        .isBefore(LocalDateTime.now());
             } catch (Exception ignored) {}
         }
 
-        String bg = overdue ? "#FFB3B3"
-                : switch (status) {
-                    case "READY"       -> "#90EE90";
-                    case "DEVELOPMENT" -> "#FFD580";
-                    default            -> "#E0E0E0";
-                };
         String icon = overdue ? "✖"
                 : switch (status) {
                     case "READY"       -> "✔";
@@ -222,19 +205,59 @@ public class TasksController {
         titleLbl.setMaxWidth(Double.MAX_VALUE);
         HBox.setHgrow(titleLbl, Priority.ALWAYS);
 
-        HBox card = new HBox(12, iconLbl, titleLbl);
-        card.setAlignment(Pos.CENTER_LEFT);
-        card.setPadding(new Insets(12, 16, 12, 16));
-        card.setStyle("-fx-background-color: " + bg + "; -fx-background-radius: 10; -fx-cursor: hand;");
-        card.setMaxWidth(Double.MAX_VALUE);
-
-        // Двойной клик — детали задачи
         final int idx = i;
-        card.setOnMouseClicked(e -> {
-            if (e.getClickCount() == 2) showTaskDetail(idx);
-        });
 
+        // READY — весь фон зелёный; просроченная — весь фон очень тёмно-красный
+        if ("READY".equals(status) || overdue) {
+            String fullBg = overdue ? "#B71C1C" : "#90EE90";
+            if (overdue) {
+                iconLbl.setStyle("-fx-font-size: 20; -fx-min-width: 28; -fx-text-fill: white;");
+                titleLbl.setStyle("-fx-font-size: 15; -fx-text-fill: white;");
+            }
+            HBox card = new HBox(12, iconLbl, titleLbl);
+            card.setAlignment(Pos.CENTER_LEFT);
+            card.setPadding(new Insets(12, 16, 12, 16));
+            card.setStyle("-fx-background-color: " + fullBg + "; -fx-background-radius: 10; -fx-cursor: hand;");
+            card.setMaxWidth(Double.MAX_VALUE);
+            card.setOnMouseClicked(e -> { if (e.getClickCount() == 2) showTaskDetail(idx); });
+            return card;
+        }
+
+        // Левая полоска — цвет статуса
+        String statusColor = "DEVELOPMENT".equals(status) ? "#FFA726" : "#9E9E9E";
+        Region statusStripe = new Region();
+        statusStripe.setMinWidth(6); statusStripe.setMaxWidth(6);
+        statusStripe.setStyle("-fx-background-color: " + statusColor
+                + "; -fx-background-radius: 10 0 0 10;");
+
+        // Фон карточки — квадрант Эйзенхауэра
+        HBox inner = new HBox(12, iconLbl, titleLbl);
+        inner.setAlignment(Pos.CENTER_LEFT);
+        inner.setPadding(new Insets(12, 12, 12, 16));
+        inner.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(inner, Priority.ALWAYS);
+        inner.setStyle("-fx-background-color: " + eisenhowerColor(quadrant)
+                + "; -fx-background-radius: 0 10 10 0;");
+
+        HBox card = new HBox(0, statusStripe, inner);
+        card.setAlignment(Pos.CENTER_LEFT);
+        card.setStyle("-fx-background-radius: 10; -fx-cursor: hand;"
+                + " -fx-border-color: #E0E0E0; -fx-border-radius: 10; -fx-border-width: 1;");
+        card.setMaxWidth(Double.MAX_VALUE);
+        card.setOnMouseClicked(e -> { if (e.getClickCount() == 2) showTaskDetail(idx); });
         return card;
+    }
+
+    private String eisenhowerColor(String quadrant) {
+        if (quadrant == null) return "#E0E0E0";
+        return switch (quadrant) {
+            case "URGENT_IMPORTANT"               -> "#EF9A9A"; // срочно + важно
+            case "URGENT_SOMEWHAT_IMPORTANT"      -> "#FFCC80"; // срочно + не очень важно
+            case "URGENT_NOT_IMPORTANT"           -> "#FFF59D"; // срочно + не важно
+            case "NOT_URGENT_IMPORTANT"           -> "#90CAF9"; // не срочно + важно
+            case "NOT_URGENT_SOMEWHAT_IMPORTANT"  -> "#B3E5FC"; // не срочно + не очень важно
+            default                               -> "#E0E0E0"; // не срочно + не важно
+        };
     }
 
     // ─── Детали задачи ────────────────────────────────────────────────────────
@@ -265,7 +288,7 @@ public class TasksController {
         statusBox.setValue(statuses.get(i));
 
         Button saveBtn = new Button("Сохранить статус");
-        saveBtn.setStyle("-fx-background-color: #FF9A2E; -fx-text-fill: white; -fx-background-radius: 8; -fx-padding: 6 14;");
+        saveBtn.setStyle("-fx-background-color: #FAA030; -fx-text-fill: white; -fx-background-radius: 8; -fx-padding: 6 14;");
         saveBtn.setOnAction(e -> {
             updateStatus(ids.get(i), statusBox.getValue());
             statuses.set(i, statusBox.getValue());
@@ -296,45 +319,117 @@ public class TasksController {
 
     @FXML
     protected void onAddTaskClick() {
-        Dialog<ButtonType> dialog = new Dialog<>();
-        dialog.setTitle("Новая задача");
-        ButtonType addBtn = new ButtonType("Добавить", ButtonBar.ButtonData.OK_DONE);
-        dialog.getDialogPane().getButtonTypes().addAll(addBtn, ButtonType.CANCEL);
+        Stage dialog = new Stage();
+        dialog.initOwner(rootPane.getScene().getWindow());
+        dialog.initModality(Modality.APPLICATION_MODAL);
+        dialog.setResizable(false);
 
+        // ─── Шапка ───────────────────────────────────────────────────────────
+        HBox header = new HBox();
+        header.setStyle("-fx-background-color: #FAA030; -fx-padding: 18 16;");
+        header.setAlignment(Pos.CENTER_LEFT);
+        Label headerLbl = new Label("Новая Задача");
+        headerLbl.setStyle("-fx-font-size: 20; -fx-font-weight: bold; -fx-text-fill: white;");
+        Region hSpacer = new Region();
+        HBox.setHgrow(hSpacer, Priority.ALWAYS);
+        Button closeBtn = new Button("✕");
+        closeBtn.setStyle("-fx-background-color: transparent; -fx-text-fill: white;"
+                + " -fx-font-size: 15; -fx-cursor: hand; -fx-padding: 0 4;");
+        closeBtn.setOnAction(e -> dialog.close());
+        header.getChildren().addAll(headerLbl, hSpacer, closeBtn);
+
+        // ─── Поля ────────────────────────────────────────────────────────────
         TextField titleField = new TextField();
-        titleField.setPromptText("Название задачи...");
-        titleField.setStyle("-fx-background-color: #E0E0E0; -fx-background-radius: 8; -fx-padding: 8;");
+        titleField.setPromptText("Назовите свою задачу...");
+        titleField.setStyle("-fx-background-color: #E8E8E8; -fx-background-radius: 10;"
+                + " -fx-border-color: transparent; -fx-padding: 10 14; -fx-font-size: 14;");
+        titleField.setMaxWidth(Double.MAX_VALUE);
 
         TextArea descField = new TextArea();
-        descField.setPromptText("Описание...");
+        descField.setPromptText("Опишите её...");
         descField.setPrefRowCount(3);
-        descField.setStyle("-fx-background-color: #E0E0E0; -fx-background-radius: 8;");
+        descField.setStyle("-fx-background-color: #E8E8E8; -fx-background-radius: 10;"
+                + " -fx-border-color: transparent; -fx-padding: 10 14; -fx-font-size: 13;");
 
-        TextField deadlineField = new TextField();
-        deadlineField.setPromptText("2026-04-20T12:00:00  (необязательно)");
+        // ─── Дедлайн: дата + часы + минуты ───────────────────────────────────
+        DatePicker deadlinePicker = new DatePicker();
+        deadlinePicker.setPromptText("Дата");
+        HBox.setHgrow(deadlinePicker, Priority.ALWAYS);
 
-        Spinner<Integer> importanceSpinner = new Spinner<>(1, 5, 3);
-        importanceSpinner.setEditable(true);
-        importanceSpinner.setPrefWidth(70);
+        Spinner<Integer> hoursSpinner = new Spinner<>(0, 23, 23);
+        hoursSpinner.setEditable(true);
+        hoursSpinner.setPrefWidth(68);
 
-        VBox content = new VBox(8,
-                new Label("Назовите свою задачу:"), titleField,
-                new Label("Опишите её:"), descField,
-                new Label("Дедлайн:"), deadlineField,
-                new HBox(8, new Label("Важность (1–5):"), importanceSpinner)
-        );
-        content.setPrefWidth(340);
-        dialog.getDialogPane().setContent(content);
+        Label colonLbl = new Label(":");
+        colonLbl.setStyle("-fx-font-size: 16; -fx-font-weight: bold; -fx-padding: 0 0 2 0;");
 
-        dialog.showAndWait().ifPresent(btn -> {
-            if (btn != addBtn) return;
+        Spinner<Integer> minsSpinner = new Spinner<>(0, 59, 59);
+        minsSpinner.setEditable(true);
+        minsSpinner.setPrefWidth(68);
+
+        HBox deadlineRow = new HBox(8, deadlinePicker, hoursSpinner, colonLbl, minsSpinner);
+        deadlineRow.setAlignment(Pos.CENTER_LEFT);
+
+        // ─── Звёзды важности (1-3) ───────────────────────────────────────────
+        int[] importanceHolder = {2};
+        Label[] stars = new Label[3];
+        HBox starsBox = new HBox(6);
+        starsBox.setAlignment(Pos.CENTER_LEFT);
+        Runnable refreshStars = () -> {
+            for (int i = 0; i < 3; i++) {
+                stars[i].setText(i < importanceHolder[0] ? "★" : "☆");
+                stars[i].setStyle("-fx-font-size: 28; -fx-text-fill: "
+                        + (i < importanceHolder[0] ? "#FAA030" : "#CCCCCC") + "; -fx-cursor: hand;");
+            }
+        };
+        for (int i = 0; i < 3; i++) {
+            stars[i] = new Label();
+            final int val = i + 1;
+            stars[i].setOnMouseClicked(e -> { importanceHolder[0] = val; refreshStars.run(); });
+            starsBox.getChildren().add(stars[i]);
+        }
+        refreshStars.run();
+
+        // ─── Кнопка ДОБАВИТЬ ─────────────────────────────────────────────────
+        Button addBtn = new Button("ДОБАВИТЬ");
+        addBtn.setMaxWidth(Double.MAX_VALUE);
+        addBtn.setStyle("-fx-background-color: #FAA030; -fx-text-fill: white; -fx-font-weight: bold;"
+                + " -fx-font-size: 16; -fx-background-radius: 25; -fx-padding: 13 0; -fx-cursor: hand;");
+        addBtn.setOnAction(e -> {
             String t = titleField.getText().trim();
             if (t.isBlank()) { showError("Название не может быть пустым"); return; }
-
-            String dl = deadlineField.getText().trim().isEmpty() ? null : deadlineField.getText().trim();
-            createPersonalTask(t, descField.getText().trim(), dl, importanceSpinner.getValue());
+            String dl = null;
+            if (deadlinePicker.getValue() != null) {
+                dl = deadlinePicker.getValue()
+                        + "T" + String.format("%02d", hoursSpinner.getValue())
+                        + ":" + String.format("%02d", minsSpinner.getValue()) + ":00";
+            }
+            createPersonalTask(t, descField.getText().trim(), dl, importanceHolder[0]);
+            dialog.close();
             loadTasks();
         });
+
+        VBox content = new VBox(8,
+                formLabel("Назовите свою задачу"), titleField,
+                formLabel("Опишите её"), descField,
+                formLabel("Дедлайн"), deadlineRow,
+                formLabel("Важность"), starsBox,
+                addBtn
+        );
+        content.setPadding(new Insets(16, 20, 20, 20));
+        content.setStyle("-fx-background-color: #F5F0EB;");
+
+        VBox root = new VBox(header, content);
+        root.setStyle("-fx-background-color: #F5F0EB;");
+
+        dialog.setScene(new Scene(root, 400, 460));
+        dialog.showAndWait();
+    }
+
+    private Label formLabel(String text) {
+        Label lbl = new Label(text);
+        lbl.setStyle("-fx-font-size: 13; -fx-text-fill: #666; -fx-font-weight: bold;");
+        return lbl;
     }
 
     private void createPersonalTask(String title, String desc, String deadline, int importance) {
@@ -374,15 +469,17 @@ public class TasksController {
                     .GET().build();
             String body = client.send(req, HttpResponse.BodyHandlers.ofString()).body();
 
-            Pattern blockPat = Pattern.compile("\\{(.*?)\"members\"", Pattern.DOTALL);
-            Matcher blockM = blockPat.matcher(body);
-            while (blockM.find()) {
-                String block = blockM.group(1);
-                if (!block.contains("\"creatorId\"")) continue;
-                Matcher nameM = Pattern.compile("\"name\":\"([^\"]+)\"").matcher(block);
-                Matcher idM   = Pattern.compile("\"id\":(\\d+)").matcher(block);
-                if (nameM.find() && nameM.group(1).equals("Личные") && idM.find()) {
-                    return Long.parseLong(idM.group(1));
+            // Brace-depth parser: each top-level object is one project
+            int depth = 0, start = -1;
+            for (int i = 0; i < body.length(); i++) {
+                char c = body.charAt(i);
+                if (c == '{') { if (depth++ == 0) start = i; }
+                else if (c == '}' && --depth == 0 && start >= 0) {
+                    String obj = body.substring(start, i + 1);
+                    Matcher nameM = Pattern.compile("\"name\":\"([^\"]+)\"").matcher(obj);
+                    Matcher idM   = Pattern.compile("\"id\":(\\d+)").matcher(obj);
+                    if (nameM.find() && nameM.group(1).equals("Личные") && idM.find())
+                        return Long.parseLong(idM.group(1));
                 }
             }
 

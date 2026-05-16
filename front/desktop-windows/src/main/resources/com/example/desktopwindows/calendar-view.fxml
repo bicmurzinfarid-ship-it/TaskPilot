@@ -8,7 +8,7 @@
             stylesheets="@app.css">
 
     <top>
-        <HBox style="-fx-background-color: #FF9A2E; -fx-padding: 14 16;" alignment="CENTER" spacing="10">
+        <HBox style="-fx-background-color: #FAA030; -fx-padding: 18 16;" alignment="CENTER" spacing="10">
             <Label text="Task" style="-fx-font-size: 20; -fx-font-weight: bold; -fx-text-fill: #3D1A00;"/>
             <Label text="Pilot" style="-fx-font-size: 20; -fx-font-weight: bold; -fx-text-fill: white;"/>
         </HBox>

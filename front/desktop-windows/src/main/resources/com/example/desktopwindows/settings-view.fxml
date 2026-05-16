@@ -10,7 +10,7 @@
             stylesheets="@app.css">
 
     <top>
-        <HBox style="-fx-background-color: #FF9A2E; -fx-padding: 14 16;" alignment="CENTER">
+        <HBox style="-fx-background-color: #FAA030; -fx-padding: 18 16;" alignment="CENTER">
             <Label text="Task" style="-fx-font-size: 20; -fx-font-weight: bold; -fx-text-fill: #3D1A00;"/>
             <Label text="Pilot" style="-fx-font-size: 20; -fx-font-weight: bold; -fx-text-fill: white;"/>
         </HBox>
@@ -35,7 +35,7 @@
                     <!-- Аватар + имя -->
                     <HBox spacing="14" alignment="CENTER_LEFT">
                         <Label fx:id="avatarLabel"
-                               style="-fx-background-color: #FF9A2E; -fx-background-radius: 50;
+                               style="-fx-background-color: #FAA030; -fx-background-radius: 50;
                                       -fx-font-size: 22; -fx-min-width: 52; -fx-min-height: 52;
                                       -fx-max-width: 52; -fx-max-height: 52; -fx-alignment: center;
                                       -fx-text-fill: white; -fx-font-weight: bold;"

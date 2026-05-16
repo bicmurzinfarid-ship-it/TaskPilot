@@ -1,5 +1,5 @@
 /* ─── Основной цвет ─────────────────────────────────────────────────────── */
-/* Основной оранжевый: #FF9A2E (ярче чем #FAA757) */
+/* Основной оранжевый: #FAA030 (ярче чем #FAA757) */
 
 /* ─── Поле ввода на экранах авторизации ─────────────────────────────────── */
 .auth-field {
@@ -13,13 +13,13 @@
 }
 
 .auth-field:focused {
-    -fx-border-color: #FF9A2E;
+    -fx-border-color: #FAA030;
     -fx-background-color: white;
 }
 
 /* ─── Кнопка авторизации ─────────────────────────────────────────────────── */
 .auth-btn {
-    -fx-background-color: #FF9A2E;
+    -fx-background-color: #FAA030;
     -fx-text-fill: white;
     -fx-font-size: 14px;
     -fx-font-weight: bold;
@@ -67,7 +67,7 @@
 
 /* ─── Основная оранжевая кнопка (+ Добавить и т.д.) ─────────────────────── */
 .btn-primary {
-    -fx-background-color: #FF9A2E;
+    -fx-background-color: #FAA030;
     -fx-background-radius: 20;
     -fx-font-size: 13px;
     -fx-padding: 6 16;
@@ -84,7 +84,7 @@
 
 /* ─── Диалоговые кнопки ──────────────────────────────────────────────────── */
 .btn-dialog {
-    -fx-background-color: #FF9A2E;
+    -fx-background-color: #FAA030;
     -fx-background-radius: 8;
     -fx-padding: 6 14;
     -fx-cursor: hand;

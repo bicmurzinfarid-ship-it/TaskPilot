@@ -18,6 +18,7 @@ import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
 import java.time.format.TextStyle;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -50,7 +51,6 @@ public class CalendarController {
     private void loadAllTasks() {
         tasksByDate.clear();
         try {
-            // Получаем все проекты пользователя
             HttpRequest projReq = HttpRequest.newBuilder()
                     .uri(URI.create("http://localhost:8080/project"))
                     .header("Authorization", "Bearer " + Session.getToken())
@@ -58,16 +58,18 @@ public class CalendarController {
             String projBody = client.send(projReq, HttpResponse.BodyHandlers.ofString()).body();
 
             List<Long> projectIds = new ArrayList<>();
-            Pattern blockPat = Pattern.compile("\\{(.*?)\"members\"", Pattern.DOTALL);
-            Matcher blockM = blockPat.matcher(projBody);
-            while (blockM.find()) {
-                String block = blockM.group(1);
-                if (!block.contains("\"creatorId\"")) continue;
-                Matcher idM = Pattern.compile("\"id\":(\\d+)").matcher(block);
-                if (idM.find()) projectIds.add(Long.parseLong(idM.group(1)));
+            // Brace-depth parser: each top-level {...} is one project object
+            int depth = 0, start = -1;
+            for (int i = 0; i < projBody.length(); i++) {
+                char c = projBody.charAt(i);
+                if (c == '{') { if (depth++ == 0) start = i; }
+                else if (c == '}' && --depth == 0 && start >= 0) {
+                    String obj = projBody.substring(start, i + 1);
+                    Matcher idM = Pattern.compile("\"id\":(\\d+)").matcher(obj);
+                    if (idM.find()) projectIds.add(Long.parseLong(idM.group(1)));
+                }
             }
 
-            // Загружаем задачи из каждого проекта
             for (Long pid : projectIds) {
                 HttpRequest taskReq = HttpRequest.newBuilder()
                         .uri(URI.create("http://localhost:8080/project/" + pid + "/task"))
@@ -93,9 +95,13 @@ public class CalendarController {
             if (titleM.find() && deadlineM.find()) {
                 String title = titleM.group(1);
                 String status = statusM.find() ? statusM.group(1) : "WAITING";
+                Matcher quadrantM = Pattern.compile("\"eisenhowerQuadrant\":\"([^\"]+)\"").matcher(block);
+                String quadrant = quadrantM.find() ? quadrantM.group(1) : null;
+                String deadlineFull = deadlineM.group(1);
                 try {
-                    LocalDate date = LocalDateTime.parse(deadlineM.group(1), fmt).toLocalDate();
-                    tasksByDate.computeIfAbsent(date, k -> new ArrayList<>()).add(new String[]{title, status});
+                    LocalDate date = LocalDateTime.parse(deadlineFull, fmt).toLocalDate();
+                    tasksByDate.computeIfAbsent(date, k -> new ArrayList<>())
+                            .add(new String[]{title, status, quadrant != null ? quadrant : "", deadlineFull});
                 } catch (Exception ignored) {}
             }
         }
@@ -194,15 +200,16 @@ public class CalendarController {
                 cell.getChildren().add(more);
                 break;
             }
-            String status = task[1];
-            String bg = switch (status) {
-                case "READY" -> "#90EE90";
-                case "DEVELOPMENT" -> "#FFD580";
-                default -> {
-                    // Просроченная?
-                    yield date.isBefore(today) ? "#FFB3B3" : "#E0E0E0";
-                }
-            };
+            String status   = task[1];
+            String quadrant = task.length > 2 ? task[2] : null;
+            String bg;
+            if ("READY".equals(status)) {
+                bg = "#90EE90";
+            } else if (date.isBefore(today)) {
+                bg = "#C62828";
+            } else {
+                bg = eisenhowerCalendarColor(quadrant);
+            }
             Label taskLbl = new Label(task[0]);
             taskLbl.setMaxWidth(Double.MAX_VALUE);
             taskLbl.setWrapText(false);
@@ -233,12 +240,16 @@ public class CalendarController {
         box.getChildren().add(new Label("Задачи:"));
 
         for (String[] task : tasks) {
-            String status = task[1];
-            String color = switch (status) {
-                case "READY" -> "#90EE90";
-                case "DEVELOPMENT" -> "#FFD580";
-                default -> date.isBefore(LocalDate.now()) ? "#FFB3B3" : "#E0E0E0";
-            };
+            String status   = task[1];
+            String quadrant = task.length > 2 ? task[2] : null;
+            String color;
+            if ("READY".equals(status)) {
+                color = "#90EE90";
+            } else if (date.isBefore(LocalDate.now())) {
+                color = "#FFB3B3";
+            } else {
+                color = eisenhowerCalendarColor(quadrant);
+            }
             Label lbl = new Label(task[0]);
             lbl.setMaxWidth(Double.MAX_VALUE);
             lbl.setWrapText(true);
@@ -249,6 +260,18 @@ public class CalendarController {
 
         dialog.getDialogPane().setContent(new ScrollPane(box));
         dialog.showAndWait();
+    }
+
+    private String eisenhowerCalendarColor(String quadrant) {
+        if (quadrant == null || quadrant.isEmpty()) return "#E0E0E0";
+        return switch (quadrant) {
+            case "URGENT_IMPORTANT"               -> "#EF9A9A";
+            case "URGENT_SOMEWHAT_IMPORTANT"      -> "#FFCC80";
+            case "URGENT_NOT_IMPORTANT"           -> "#FFF59D";
+            case "NOT_URGENT_IMPORTANT"           -> "#90CAF9";
+            case "NOT_URGENT_SOMEWHAT_IMPORTANT"  -> "#B3E5FC";
+            default                               -> "#E0E0E0";
+        };
     }
 
     // ─── Навигация ────────────────────────────────────────────────────────────

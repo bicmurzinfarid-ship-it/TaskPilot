@@ -1,16 +1,13 @@
 package TaskPilot.pre;
 
 /**
- * Квадранты матрицы Эйзенхауэра.
- * Классификация задач по срочности и важности.
+ * Квадранты матрицы Эйзенхауэра (расширенная: 3 уровня важности × 2 уровня срочности).
  */
 public enum EisenhowerQuadrant {
-    /** Срочно и важно — делать в первую очередь */
     URGENT_IMPORTANT,
-    /** Не срочно, но важно — планировать */
-    NOT_URGENT_IMPORTANT,
-    /** Срочно, но не важно — делегировать */
+    URGENT_SOMEWHAT_IMPORTANT,
     URGENT_NOT_IMPORTANT,
-    /** Не срочно и не важно — устранить/отложить */
+    NOT_URGENT_IMPORTANT,
+    NOT_URGENT_SOMEWHAT_IMPORTANT,
     NOT_URGENT_NOT_IMPORTANT
 }

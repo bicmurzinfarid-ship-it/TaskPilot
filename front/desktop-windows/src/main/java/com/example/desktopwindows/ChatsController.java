@@ -50,8 +50,8 @@ public class ChatsController {
 
     private static final String ACTIVE_STYLE =
             "-fx-background-color: transparent; -fx-font-size: 14; " +
-            "-fx-text-fill: #FF9A2E; -fx-font-weight: bold; " +
-            "-fx-border-color: #FF9A2E; -fx-border-width: 0 0 2 0;";
+            "-fx-text-fill: #FAA030; -fx-font-weight: bold; " +
+            "-fx-border-color: #FAA030; -fx-border-width: 0 0 2 0;";
     private static final String INACTIVE_STYLE =
             "-fx-background-color: transparent; -fx-font-size: 14; -fx-text-fill: #555;";
 
@@ -187,7 +187,7 @@ public class ChatsController {
 
     private HBox buildGroupChatRow(int i) {
         // Иконка группы
-        Label avatar = makeAvatar("👥", "#FAA757");
+        Label avatar = makeAvatar("👥", "#FAA030");
 
         VBox info = new VBox(1);
         Label nameLbl = new Label("Чат " + chatNames.get(i));
@@ -314,7 +314,7 @@ public class ChatsController {
         inputField.setStyle("-fx-background-radius: 20; -fx-padding: 8 12;");
 
         Button sendBtn = new Button("➤");
-        sendBtn.setStyle("-fx-background-color: #FAA757; -fx-background-radius: 50;"
+        sendBtn.setStyle("-fx-background-color: #FAA030; -fx-background-radius: 50;"
                 + " -fx-font-size: 14; -fx-padding: 6 12; -fx-cursor: hand;");
 
         connectWebSocket(roomId, messageBox, scroll);
@@ -601,7 +601,7 @@ public class ChatsController {
         lbl.setWrapText(true);
         lbl.setMaxWidth(280);
         lbl.setPadding(new Insets(8, 12, 8, 12));
-        lbl.setStyle("-fx-background-color: " + (isMine ? "#FAA757" : "#E0E0E0")
+        lbl.setStyle("-fx-background-color: " + (isMine ? "#FAA030" : "#E0E0E0")
                 + "; -fx-background-radius: 18; -fx-font-size: 13;");
 
         HBox box = new HBox(lbl);

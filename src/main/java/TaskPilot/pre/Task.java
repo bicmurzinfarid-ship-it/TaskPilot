@@ -88,27 +88,31 @@ public class Task {
         if (deadline == null) return null;
         long hours = ChronoUnit.HOURS.between(LocalDateTime.now(), deadline);
         if (hours < 0) return 5;           // просрочено
-        if (hours < 24) return 5;
-        if (hours < 72) return 4;          // 1-3 дня
-        if (hours < 168) return 3;         // 3-7 дней
+        if (hours < 24) return 5;          // < 24 ч
+        if (hours < 48) return 4;          // 1-2 дня
+        if (hours < 168) return 3;         // 2-7 дней
         if (hours < 672) return 2;         // 1-4 недели
         return 1;
     }
 
     /**
-     * Вычисляет квадрант матрицы Эйзенхауэра по deadline и importance.
+     * Вычисляет квадрант матрицы Эйзенхауэра.
+     * Важность: 3 = важно, 2 = не очень важно, 1 = не важно.
+     * Срочность: urgency >= 4 (≤3 дней до дедлайна).
      */
     @Transient
     public EisenhowerQuadrant getEisenhowerQuadrant() {
         Integer urgency = getUrgency();
-        if (urgency == null || importance == null) {
-            return null;
-        }
+        if (urgency == null || importance == null) return null;
         boolean isUrgent = urgency >= HIGH_THRESHOLD;
-        boolean isImportant = importance >= HIGH_THRESHOLD;
-        if (isUrgent && isImportant) return EisenhowerQuadrant.URGENT_IMPORTANT;
-        if (!isUrgent && isImportant) return EisenhowerQuadrant.NOT_URGENT_IMPORTANT;
-        if (isUrgent && !isImportant) return EisenhowerQuadrant.URGENT_NOT_IMPORTANT;
-        return EisenhowerQuadrant.NOT_URGENT_NOT_IMPORTANT;
+        if (isUrgent) {
+            if (importance >= 3) return EisenhowerQuadrant.URGENT_IMPORTANT;
+            if (importance == 2) return EisenhowerQuadrant.URGENT_SOMEWHAT_IMPORTANT;
+            return EisenhowerQuadrant.URGENT_NOT_IMPORTANT;
+        } else {
+            if (importance >= 3) return EisenhowerQuadrant.NOT_URGENT_IMPORTANT;
+            if (importance == 2) return EisenhowerQuadrant.NOT_URGENT_SOMEWHAT_IMPORTANT;
+            return EisenhowerQuadrant.NOT_URGENT_NOT_IMPORTANT;
+        }
     }
 }
