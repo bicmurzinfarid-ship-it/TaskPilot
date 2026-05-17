@@ -1,7 +1,10 @@
 package TaskPilot.pre;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.messaging.handler.annotation.MessageExceptionHandler;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
@@ -17,6 +20,9 @@ import java.util.Map;
 @RestController
 public class ChatController {
 
+    private static final Logger log = LoggerFactory.getLogger(ChatController.class);
+
+
     private SimpMessagingTemplate messagingTemplate;
     private ChatMessageService chatMessageService;
     private ChatRoomService chatRoomService;
@@ -31,6 +37,11 @@ public class ChatController {
         this.chatMessageService = chatMessageService;
         this.chatRoomService = chatRoomService;
         this.userRepository = userRepository;
+    }
+
+    @MessageExceptionHandler
+    public void handleException(Exception e, Principal principal) {
+        log.error("WebSocket error for {}: {}", principal != null ? principal.getName() : "unknown", e.getMessage(), e);
     }
 
     @MessageMapping("/chat")

@@ -613,6 +613,11 @@ public class ChatsController {
                 }
             };
 
+            if (wsUri.getScheme().equals("wss")) {
+                javax.net.ssl.SSLContext sslContext = javax.net.ssl.SSLContext.getInstance("TLS");
+                sslContext.init(null, null, null);
+                currentWs.setSocketFactory(sslContext.getSocketFactory());
+            }
             currentWs.connect();
         } catch (Exception e) {
             e.printStackTrace();
