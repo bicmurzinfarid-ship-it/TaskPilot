@@ -96,7 +96,7 @@ public class MainController {
     private void loadProjects() {
         try {
             HttpRequest req = HttpRequest.newBuilder()
-                    .uri(URI.create("http://localhost:8080/project"))
+                    .uri(URI.create(Session.API_BASE + "/project"))
                     .header("Authorization", "Bearer " + Session.getToken())
                     .GET().build();
             HttpResponse<String> resp = client.send(req, HttpResponse.BodyHandlers.ofString());
@@ -144,7 +144,7 @@ public class MainController {
     private void loadAllUsers() {
         try {
             HttpRequest req = HttpRequest.newBuilder()
-                    .uri(URI.create("http://localhost:8080/user"))
+                    .uri(URI.create(Session.API_BASE + "/user"))
                     .header("Authorization", "Bearer " + Session.getToken())
                     .GET()
                     .build();
@@ -202,12 +202,7 @@ public class MainController {
                 + " -fx-border-color: transparent; -fx-padding: 8 12; -fx-font-size: 13;");
         searchField.setMaxWidth(Double.MAX_VALUE);
 
-        ListView<String> suggestions = new ListView<>();
-        suggestions.setPrefHeight(110);
-        suggestions.setVisible(false);
-        suggestions.setManaged(false);
-        suggestions.setStyle("-fx-background-radius: 8; -fx-border-color: #D0D0D0;"
-                + " -fx-border-radius: 8; -fx-border-width: 1;");
+        ContextMenu suggestionsPopup = new ContextMenu();
 
         Runnable[] rebuildChips = {null};
         rebuildChips[0] = () -> {
@@ -228,44 +223,32 @@ public class MainController {
         };
 
         searchField.textProperty().addListener((obs, old, newVal) -> {
+            suggestionsPopup.getItems().clear();
             String q = newVal.trim().toLowerCase();
-            if (q.isEmpty()) {
-                suggestions.setVisible(false);
-                suggestions.setManaged(false);
-                return;
-            }
-            List<String> filtered = new ArrayList<>();
+            if (q.isEmpty()) { suggestionsPopup.hide(); return; }
             for (String name : allUsernames) {
-                if (name.toLowerCase().contains(q) && !selNames.contains(name))
-                    filtered.add(name);
+                if (name.toLowerCase().contains(q) && !selNames.contains(name)) {
+                    MenuItem mi = new MenuItem(name);
+                    mi.setOnAction(ev -> {
+                        int i = allUsernames.indexOf(name);
+                        if (i >= 0 && !selIds.contains(allUserIds.get(i))) {
+                            selIds.add(allUserIds.get(i));
+                            selNames.add(name);
+                            rebuildChips[0].run();
+                        }
+                        searchField.clear();
+                        suggestionsPopup.hide();
+                    });
+                    suggestionsPopup.getItems().add(mi);
+                }
             }
-            if (filtered.isEmpty()) {
-                suggestions.setVisible(false);
-                suggestions.setManaged(false);
-            } else {
-                suggestions.getItems().setAll(filtered);
-                suggestions.setVisible(true);
-                suggestions.setManaged(true);
-            }
+            if (!suggestionsPopup.getItems().isEmpty())
+                suggestionsPopup.show(searchField, javafx.geometry.Side.BOTTOM, 0, 0);
+            else
+                suggestionsPopup.hide();
         });
 
-        suggestions.setOnMouseClicked(e -> {
-            String selected = suggestions.getSelectionModel().getSelectedItem();
-            if (selected == null) return;
-            int i = allUsernames.indexOf(selected);
-            if (i < 0) return;
-            Long uid = allUserIds.get(i);
-            if (!selIds.contains(uid)) {
-                selIds.add(uid);
-                selNames.add(selected);
-                rebuildChips[0].run();
-            }
-            searchField.clear();
-            suggestions.setVisible(false);
-            suggestions.setManaged(false);
-        });
-
-        VBox membersBox = new VBox(6, styledLabel("Участники"), searchField, suggestions, chips);
+        VBox membersBox = new VBox(6, styledLabel("Участники"), searchField, chips);
         membersBox.setStyle("-fx-background-color: #F0F4FF; -fx-background-radius: 10;"
                 + " -fx-padding: 10 12; -fx-border-color: #C8D4F8; -fx-border-radius: 10; -fx-border-width: 1;");
 
@@ -303,7 +286,7 @@ public class MainController {
         try {
             String json = "{\"name\": \"" + name + "\"}";
             HttpRequest req = HttpRequest.newBuilder()
-                    .uri(URI.create("http://localhost:8080/project"))
+                    .uri(URI.create(Session.API_BASE + "/project"))
                     .header("Content-Type", "application/json")
                     .header("Authorization", "Bearer " + Session.getToken())
                     .POST(HttpRequest.BodyPublishers.ofString(json))
@@ -326,7 +309,7 @@ public class MainController {
     private void addMember(Long projectId, Long userId) {
         try {
             HttpRequest req = HttpRequest.newBuilder()
-                    .uri(URI.create("http://localhost:8080/project/" + projectId + "/member/" + userId))
+                    .uri(URI.create(Session.API_BASE + "/project/" + projectId + "/member/" + userId))
                     .header("Authorization", "Bearer " + Session.getToken())
                     .POST(HttpRequest.BodyPublishers.noBody())
                     .build();
@@ -399,7 +382,7 @@ public class MainController {
             int tlIdx = details.memberIds().indexOf(details.teamLeadId());
             if (tlIdx >= 0) teamLeadName = details.memberNames().get(tlIdx);
         }
-        tab.getChildren().add(makeInfoRow("Лидер", teamLeadName));
+        tab.getChildren().add(makeInfoRow("Лидер", teamLeadName, details.teamLeadId()));
         tab.getChildren().add(new Separator());
 
         // Управление тимлидом — только для создателя
@@ -450,8 +433,10 @@ public class MainController {
         }
 
         // ─── Участники ────────────────────────────────────────────────────────
-        for (String name : details.memberNames()) {
-            tab.getChildren().add(makeInfoRow("", name));
+        for (int mi = 0; mi < details.memberNames().size(); mi++) {
+            tab.getChildren().add(makeInfoRow("",
+                    details.memberNames().get(mi),
+                    details.memberIds().get(mi)));
         }
         tab.getChildren().add(new Separator());
 
@@ -469,20 +454,16 @@ public class MainController {
         return tab;
     }
 
-    private HBox makeInfoRow(String role, String name) {
+    private HBox makeInfoRow(String role, String name, Long userId) {
         HBox row = new HBox(12);
         row.setStyle("-fx-padding: 10 16;");
         row.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
 
-        // Иконка-аватар
-        Label avatar = new Label("👤");
-        avatar.setStyle("-fx-background-color: #FAA030; -fx-background-radius: 50;"
-                + " -fx-padding: 6 8; -fx-font-size: 14;");
+        row.getChildren().add(AvatarLoader.make(userId, name, 36));
 
         Label nameLbl = new Label(name);
         nameLbl.setStyle("-fx-font-size: 14;");
-
-        row.getChildren().addAll(avatar, nameLbl);
+        row.getChildren().add(nameLbl);
 
         if (!role.isBlank()) {
             Label roleLbl = new Label(role);
@@ -516,7 +497,7 @@ public class MainController {
             taskIds.clear();
             try {
                 HttpRequest req = HttpRequest.newBuilder()
-                        .uri(URI.create("http://localhost:8080/project/" + projectId + "/task"))
+                        .uri(URI.create(Session.API_BASE + "/project/" + projectId + "/task"))
                         .header("Authorization", "Bearer " + Session.getToken())
                         .GET().build();
                 String body = client.send(req, HttpResponse.BodyHandlers.ofString()).body();
@@ -711,12 +692,7 @@ public class MainController {
                 + " -fx-border-color: transparent; -fx-padding: 8 12; -fx-font-size: 13;");
         searchField.setMaxWidth(Double.MAX_VALUE);
 
-        ListView<String> suggestions = new ListView<>();
-        suggestions.setPrefHeight(110);
-        suggestions.setVisible(false);
-        suggestions.setManaged(false);
-        suggestions.setStyle("-fx-background-radius: 8; -fx-border-color: #D0D0D0;"
-                + " -fx-border-radius: 8; -fx-border-width: 1;");
+        ContextMenu assigneesPopup = new ContextMenu();
 
         Runnable[] rebuildChips = {null};
         rebuildChips[0] = () -> {
@@ -737,44 +713,32 @@ public class MainController {
         };
 
         searchField.textProperty().addListener((obs, old, newVal) -> {
+            assigneesPopup.getItems().clear();
             String q = newVal.trim().toLowerCase();
-            if (q.isEmpty()) {
-                suggestions.setVisible(false);
-                suggestions.setManaged(false);
-                return;
-            }
-            List<String> filtered = new ArrayList<>();
+            if (q.isEmpty()) { assigneesPopup.hide(); return; }
             for (String name : allUsernames) {
-                if (name.toLowerCase().contains(q) && !selNames.contains(name))
-                    filtered.add(name);
+                if (name.toLowerCase().contains(q) && !selNames.contains(name)) {
+                    MenuItem mi = new MenuItem(name);
+                    mi.setOnAction(ev -> {
+                        int i = allUsernames.indexOf(name);
+                        if (i >= 0 && !selIds.contains(allUserIds.get(i))) {
+                            selIds.add(allUserIds.get(i));
+                            selNames.add(name);
+                            rebuildChips[0].run();
+                        }
+                        searchField.clear();
+                        assigneesPopup.hide();
+                    });
+                    assigneesPopup.getItems().add(mi);
+                }
             }
-            if (filtered.isEmpty()) {
-                suggestions.setVisible(false);
-                suggestions.setManaged(false);
-            } else {
-                suggestions.getItems().setAll(filtered);
-                suggestions.setVisible(true);
-                suggestions.setManaged(true);
-            }
+            if (!assigneesPopup.getItems().isEmpty())
+                assigneesPopup.show(searchField, javafx.geometry.Side.BOTTOM, 0, 0);
+            else
+                assigneesPopup.hide();
         });
 
-        suggestions.setOnMouseClicked(e -> {
-            String selected = suggestions.getSelectionModel().getSelectedItem();
-            if (selected == null) return;
-            int i = allUsernames.indexOf(selected);
-            if (i < 0) return;
-            Long uid = allUserIds.get(i);
-            if (!selIds.contains(uid)) {
-                selIds.add(uid);
-                selNames.add(selected);
-                rebuildChips[0].run();
-            }
-            searchField.clear();
-            suggestions.setVisible(false);
-            suggestions.setManaged(false);
-        });
-
-        VBox assigneesBox = new VBox(6, styledLabel("Исполнители"), searchField, suggestions, chips);
+        VBox assigneesBox = new VBox(6, styledLabel("Исполнители"), searchField, chips);
         assigneesBox.setStyle("-fx-background-color: #F0F4FF; -fx-background-radius: 10;"
                 + " -fx-padding: 10 12; -fx-border-color: #C8D4F8; -fx-border-radius: 10; -fx-border-width: 1;");
 
@@ -890,7 +854,7 @@ private void createProjectTask(Long projectId, String title, String description,
             json.append("}");
 
             HttpRequest req = HttpRequest.newBuilder()
-                    .uri(URI.create("http://localhost:8080/project/" + projectId + "/task"))
+                    .uri(URI.create(Session.API_BASE + "/project/" + projectId + "/task"))
                     .header("Content-Type", "application/json")
                     .header("Authorization", "Bearer " + Session.getToken())
                     .POST(HttpRequest.BodyPublishers.ofString(json.toString()))
@@ -907,7 +871,7 @@ private void createProjectTask(Long projectId, String title, String description,
     private void deleteTask(Long taskId) {
         try {
             HttpRequest req = HttpRequest.newBuilder()
-                    .uri(URI.create("http://localhost:8080/task/" + taskId))
+                    .uri(URI.create(Session.API_BASE + "/task/" + taskId))
                     .header("Authorization", "Bearer " + Session.getToken())
                     .DELETE()
                     .build();
@@ -939,7 +903,7 @@ private void createProjectTask(Long projectId, String title, String description,
     private ProjectDetails loadProjectDetails(Long projectId) {
         try {
             HttpRequest req = HttpRequest.newBuilder()
-                    .uri(URI.create("http://localhost:8080/project/" + projectId))
+                    .uri(URI.create(Session.API_BASE + "/project/" + projectId))
                     .header("Authorization", "Bearer " + Session.getToken())
                     .GET()
                     .build();
@@ -1069,7 +1033,7 @@ private void createProjectTask(Long projectId, String title, String description,
     private void removeMember(Long projectId, Long userId) {
         try {
             HttpRequest req = HttpRequest.newBuilder()
-                    .uri(URI.create("http://localhost:8080/project/" + projectId + "/member/" + userId))
+                    .uri(URI.create(Session.API_BASE + "/project/" + projectId + "/member/" + userId))
                     .header("Authorization", "Bearer " + Session.getToken())
                     .DELETE()
                     .build();
@@ -1082,7 +1046,7 @@ private void createProjectTask(Long projectId, String title, String description,
     private void setTeamLead(Long projectId, Long userId) {
         try {
             HttpRequest req = HttpRequest.newBuilder()
-                    .uri(URI.create("http://localhost:8080/project/" + projectId + "/teamlead/" + userId))
+                    .uri(URI.create(Session.API_BASE + "/project/" + projectId + "/teamlead/" + userId))
                     .header("Authorization", "Bearer " + Session.getToken())
                     .PUT(HttpRequest.BodyPublishers.noBody())
                     .build();
@@ -1095,7 +1059,7 @@ private void createProjectTask(Long projectId, String title, String description,
     private void removeTeamLead(Long projectId) {
         try {
             HttpRequest req = HttpRequest.newBuilder()
-                    .uri(URI.create("http://localhost:8080/project/" + projectId + "/teamlead"))
+                    .uri(URI.create(Session.API_BASE + "/project/" + projectId + "/teamlead"))
                     .header("Authorization", "Bearer " + Session.getToken())
                     .DELETE()
                     .build();
@@ -1130,7 +1094,7 @@ private void createProjectTask(Long projectId, String title, String description,
     private void deleteProject(Long projectId) {
         try {
             HttpRequest req = HttpRequest.newBuilder()
-                    .uri(URI.create("http://localhost:8080/project/" + projectId))
+                    .uri(URI.create(Session.API_BASE + "/project/" + projectId))
                     .header("Authorization", "Bearer " + Session.getToken())
                     .DELETE()
                     .build();

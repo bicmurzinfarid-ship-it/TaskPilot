@@ -50,7 +50,7 @@ public class LoginController {
         Thread.ofVirtual().start(() -> {
             try {
                 HttpRequest request = HttpRequest.newBuilder()
-                        .uri(URI.create("http://localhost:8080/auth/login"))
+                        .uri(URI.create(Session.API_BASE + "/auth/login"))
                         .header("Content-Type", "application/json")
                         .POST(HttpRequest.BodyPublishers.ofString(json))
                         .build();

@@ -31,7 +31,7 @@ public class Task {
     private String description;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(nullable = false, columnDefinition = "varchar(255)")
     private TaskStatus status = TaskStatus.WAITING;
 
     /** Дедлайн задачи. Срочность вычисляется по времени до дедлайна. */

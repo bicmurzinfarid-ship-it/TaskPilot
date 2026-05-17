@@ -34,19 +34,27 @@
 
                     <!-- Аватар + имя -->
                     <HBox spacing="14" alignment="CENTER_LEFT">
-                        <Label fx:id="avatarLabel"
-                               style="-fx-background-color: #FAA030; -fx-background-radius: 50;
-                                      -fx-font-size: 22; -fx-min-width: 52; -fx-min-height: 52;
-                                      -fx-max-width: 52; -fx-max-height: 52; -fx-alignment: center;
-                                      -fx-text-fill: white; -fx-font-weight: bold;"
-                               text="?"/>
-                        <VBox spacing="2">
+                        <StackPane fx:id="avatarPane" minWidth="56" minHeight="56" maxWidth="56" maxHeight="56"
+                                   style="-fx-cursor: hand;">
+                            <Label fx:id="avatarLabel"
+                                   style="-fx-background-color: #FAA030; -fx-background-radius: 50;
+                                          -fx-font-size: 22; -fx-min-width: 56; -fx-min-height: 56;
+                                          -fx-max-width: 56; -fx-max-height: 56; -fx-alignment: center;
+                                          -fx-text-fill: white; -fx-font-weight: bold;"
+                                   text="?"/>
+                        </StackPane>
+                        <VBox spacing="4">
                             <Label fx:id="usernameLabel"
                                    style="-fx-font-size: 17; -fx-font-weight: bold; -fx-text-fill: #2D2D2D;"
                                    text="Загрузка..."/>
                             <Label fx:id="emailLabel"
                                    style="-fx-font-size: 13; -fx-text-fill: #999;"
                                    text=""/>
+                            <Button fx:id="changeAvatarBtn" text="Изменить фото"
+                                    onAction="#onChangeAvatarClick"
+                                    style="-fx-background-color: transparent; -fx-text-fill: #FAA030;
+                                           -fx-font-size: 12; -fx-padding: 0; -fx-cursor: hand;
+                                           -fx-border-color: transparent;"/>
                         </VBox>
                     </HBox>
                 </VBox>

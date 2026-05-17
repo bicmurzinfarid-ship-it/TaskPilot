@@ -3,6 +3,7 @@ package TaskPilot.pre;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -26,22 +27,59 @@ public class TaskAttachmentService {
 
     private final TaskAttachmentRepository attachmentRepo;
     private final TaskRepository taskRepo;
+    private final ProjectRepository projectRepo;
+    private final UserRepository userRepo;
 
     public TaskAttachmentService(TaskAttachmentRepository attachmentRepo,
-                                 TaskRepository taskRepo) {
+                                 TaskRepository taskRepo,
+                                 ProjectRepository projectRepo,
+                                 UserRepository userRepo) {
         this.attachmentRepo = attachmentRepo;
         this.taskRepo = taskRepo;
+        this.projectRepo = projectRepo;
+        this.userRepo = userRepo;
     }
 
+    private User getCurrentUser() {
+        String username = SecurityContextHolder.getContext().getAuthentication().getName();
+        return userRepo.findByUsername(username)
+                .orElseThrow(() -> new RuntimeException("Пользователь не найден"));
+    }
+
+    private void checkTaskAccess(Task task) {
+        User current = getCurrentUser();
+        Project project = projectRepo.findById(task.getProjectId())
+                .orElseThrow(() -> new RuntimeException("Проект не найден"));
+        if (!project.isMember(current.getId())) {
+            throw new SecurityException("Нет доступа к этой задаче");
+        }
+    }
+
+    /** Только исполнитель или менеджер проекта могут прикреплять файлы. */
+    private void checkUploadAccess(Task task) {
+        User current = getCurrentUser();
+        Project project = projectRepo.findById(task.getProjectId())
+                .orElseThrow(() -> new RuntimeException("Проект не найден"));
+        boolean isAssignee = current.getId().equals(task.getAssigneeId());
+        boolean isManager  = project.isManager(current.getId());
+        if (!isAssignee && !isManager) {
+            throw new SecurityException("Только исполнитель или менеджер могут прикреплять файлы");
+        }
+    }
+
+    @Transactional(readOnly = true)
     public List<TaskAttachment> getAttachments(Long taskId) {
-        taskRepo.findById(taskId)
+        Task task = taskRepo.findById(taskId)
                 .orElseThrow(() -> new RuntimeException("Задача не найдена"));
+        checkTaskAccess(task);
         return attachmentRepo.findByTaskId(taskId);
     }
 
+    @Transactional
     public TaskAttachment upload(Long taskId, MultipartFile file) throws IOException {
-        taskRepo.findById(taskId)
+        Task task = taskRepo.findById(taskId)
                 .orElseThrow(() -> new RuntimeException("Задача не найдена"));
+        checkUploadAccess(task);
 
         // Валидация размера
         if (file.getSize() > MAX_FILE_SIZE) {

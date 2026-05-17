@@ -52,7 +52,7 @@ public class CalendarController {
         tasksByDate.clear();
         try {
             HttpRequest projReq = HttpRequest.newBuilder()
-                    .uri(URI.create("http://localhost:8080/project"))
+                    .uri(URI.create(Session.API_BASE + "/project"))
                     .header("Authorization", "Bearer " + Session.getToken())
                     .GET().build();
             String projBody = client.send(projReq, HttpResponse.BodyHandlers.ofString()).body();
@@ -72,7 +72,7 @@ public class CalendarController {
 
             for (Long pid : projectIds) {
                 HttpRequest taskReq = HttpRequest.newBuilder()
-                        .uri(URI.create("http://localhost:8080/project/" + pid + "/task"))
+                        .uri(URI.create(Session.API_BASE + "/project/" + pid + "/task"))
                         .header("Authorization", "Bearer " + Session.getToken())
                         .GET().build();
                 String taskBody = client.send(taskReq, HttpResponse.BodyHandlers.ofString()).body();

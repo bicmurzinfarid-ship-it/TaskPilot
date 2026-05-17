@@ -51,7 +51,7 @@ public class RegisterController {
         Thread.ofVirtual().start(() -> {
             try {
                 HttpRequest request = HttpRequest.newBuilder()
-                        .uri(URI.create("http://localhost:8080/user"))
+                        .uri(URI.create(Session.API_BASE + "/user"))
                         .header("Content-Type", "application/json")
                         .POST(HttpRequest.BodyPublishers.ofString(json))
                         .build();

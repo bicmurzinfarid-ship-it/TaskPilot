@@ -1,8 +1,15 @@
 package TaskPilot.pre;
 
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.List;
 import java.util.Locale;
 
@@ -23,6 +30,44 @@ public class UserService {
     public User findUserById(Long id) {
         return userRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Not found"));
+    }
+
+    public void uploadAvatar(MultipartFile file) throws IOException {
+        String username = SecurityContextHolder.getContext().getAuthentication().getName();
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new RuntimeException("Пользователь не найден"));
+
+        String ext = "";
+        String original = file.getOriginalFilename();
+        if (original != null && original.contains("."))
+            ext = original.substring(original.lastIndexOf('.'));
+
+        Path dir = Paths.get("./uploads/avatars");
+        Files.createDirectories(dir);
+
+        // Удаляем старый файл если есть
+        if (user.getAvatarPath() != null) {
+            Path old = Paths.get(user.getAvatarPath());
+            Files.deleteIfExists(old);
+        }
+
+        Path dest = dir.resolve(user.getId() + ext);
+        Files.write(dest, file.getBytes());
+        user.setAvatarPath(dest.toString());
+        userRepository.save(user);
+    }
+
+    public byte[] getAvatar(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("Пользователь не найден"));
+        if (user.getAvatarPath() == null) return null;
+        try {
+            Path path = Paths.get(user.getAvatarPath());
+            if (!Files.exists(path)) return null;
+            return Files.readAllBytes(path);
+        } catch (IOException e) {
+            return null;
+        }
     }
 
     public User createUser(User user) {

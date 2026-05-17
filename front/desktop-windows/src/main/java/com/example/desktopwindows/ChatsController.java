@@ -88,7 +88,7 @@ public class ChatsController {
         try {
             String username = extractUsernameFromToken();
             HttpRequest req = HttpRequest.newBuilder()
-                    .uri(URI.create("http://localhost:8080/user"))
+                    .uri(URI.create(Session.API_BASE + "/user"))
                     .header("Authorization", "Bearer " + Session.getToken())
                     .GET().build();
             String body = client.send(req, HttpResponse.BodyHandlers.ofString()).body();
@@ -125,7 +125,7 @@ public class ChatsController {
         chatTypes.clear();
         try {
             HttpRequest req = HttpRequest.newBuilder()
-                    .uri(URI.create("http://localhost:8080/chat/rooms"))
+                    .uri(URI.create(Session.API_BASE + "/chat/rooms"))
                     .header("Authorization", "Bearer " + Session.getToken())
                     .GET().build();
             String body = client.send(req, HttpResponse.BodyHandlers.ofString()).body();
@@ -373,7 +373,7 @@ public class ChatsController {
     private void loadHistory(String roomId, VBox messageBox, ScrollPane scroll) {
         try {
             HttpRequest req = HttpRequest.newBuilder()
-                    .uri(URI.create("http://localhost:8080/chat/rooms/" + roomId + "/messages"))
+                    .uri(URI.create(Session.API_BASE + "/chat/rooms/" + roomId + "/messages"))
                     .header("Authorization", "Bearer " + Session.getToken())
                     .GET().build();
             String body = client.send(req, HttpResponse.BodyHandlers.ofString()).body();
@@ -432,7 +432,7 @@ public class ChatsController {
 
     private void connectWebSocket(String roomId, VBox messageBox, ScrollPane scroll) {
         try {
-            URI wsUri = new URI("ws://localhost:8080/ws");
+            URI wsUri = new URI(Session.API_BASE.replace("https://", "wss://").replace("http://", "ws://") + "/ws");
 
             currentWs = new WebSocketClient(wsUri) {
                 private boolean connected = false;
@@ -613,7 +613,7 @@ public class ChatsController {
     private void loadAllUsers() {
         try {
             HttpRequest req = HttpRequest.newBuilder()
-                    .uri(URI.create("http://localhost:8080/user"))
+                    .uri(URI.create(Session.API_BASE + "/user"))
                     .header("Authorization", "Bearer " + Session.getToken())
                     .GET()
                     .build();
@@ -721,10 +721,10 @@ public class ChatsController {
                     return;
                 }
                 String encodedName = java.net.URLEncoder.encode(name, java.nio.charset.StandardCharsets.UTF_8);
-                endpoint = "http://localhost:8080/chat/private?name=" + encodedName + "&userId=" + memberIds.get(0);
+                endpoint = Session.API_BASE + "/chat/private?name=" + encodedName + "&userId=" + memberIds.get(0);
             } else {
                 // Групповой чат: POST /chat/group с телом {name, members}
-                endpoint = "http://localhost:8080/chat/group";
+                endpoint = Session.API_BASE + "/chat/group";
                 StringBuilder membersJson = new StringBuilder();
                 for (int i = 0; i < memberIds.size(); i++) {
                     if (i > 0) membersJson.append(",");
@@ -857,7 +857,7 @@ public class ChatsController {
         try {
             // DELETE запрос на удаление чата (нужно добавить на сервере)
             HttpRequest req = HttpRequest.newBuilder()
-                    .uri(URI.create("http://localhost:8080/chat/rooms/" + roomId))
+                    .uri(URI.create(Session.API_BASE + "/chat/rooms/" + roomId))
                     .header("Authorization", "Bearer " + Session.getToken())
                     .DELETE()
                     .build();
@@ -947,7 +947,7 @@ public class ChatsController {
     private void addMemberToGroup(String roomId, Long userId) {
         try {
             HttpRequest req = HttpRequest.newBuilder()
-                    .uri(URI.create("http://localhost:8080/chat/group/" + roomId + "/member?userId=" + userId))
+                    .uri(URI.create(Session.API_BASE + "/chat/group/" + roomId + "/member?userId=" + userId))
                     .header("Authorization", "Bearer " + Session.getToken())
                     .POST(HttpRequest.BodyPublishers.noBody())
                     .build();
@@ -963,7 +963,7 @@ public class ChatsController {
     private void removeMemberFromGroup(String roomId, Long userId) {
         try {
             HttpRequest req = HttpRequest.newBuilder()
-                    .uri(URI.create("http://localhost:8080/chat/group/" + roomId + "/member/" + userId))
+                    .uri(URI.create(Session.API_BASE + "/chat/group/" + roomId + "/member/" + userId))
                     .header("Authorization", "Bearer " + Session.getToken())
                     .DELETE()
                     .build();
@@ -977,7 +977,7 @@ public class ChatsController {
         combo.getItems().clear();
         try {
             HttpRequest req = HttpRequest.newBuilder()
-                    .uri(URI.create("http://localhost:8080/chat/rooms/" + roomId))
+                    .uri(URI.create(Session.API_BASE + "/chat/rooms/" + roomId))
                     .header("Authorization", "Bearer " + Session.getToken())
                     .GET()
                     .build();
