@@ -20,6 +20,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -59,9 +60,7 @@ public class ChatsController {
     public void initialize() {
         rootPane.setLeft(NavBar.build(NavBar.Page.CHATS,
                 this::onNavHome, this::onNavCalendar, this::onNavChats, this::onNavSettings));
-        loadCurrentUser();
-        loadChats();
-        loadAllUsers();
+        Thread.ofVirtual().start(this::loadUsersAndChats);
         ContextMenu contextMenu = new ContextMenu();
         MenuItem openItem = new MenuItem("Открыть");
         MenuItem manageItem = new MenuItem("Управление группой");
@@ -84,25 +83,61 @@ public class ChatsController {
     }
 
 
-    private void loadCurrentUser() {
+    private void loadUsersAndChats() {
         try {
             String username = extractUsernameFromToken();
-            HttpRequest req = HttpRequest.newBuilder()
+            HttpRequest usersReq = HttpRequest.newBuilder()
                     .uri(URI.create(Session.API_BASE + "/user"))
                     .header("Authorization", "Bearer " + Session.getToken())
                     .GET().build();
-            String body = client.send(req, HttpResponse.BodyHandlers.ofString()).body();
+            HttpRequest chatsReq = HttpRequest.newBuilder()
+                    .uri(URI.create(Session.API_BASE + "/chat/rooms"))
+                    .header("Authorization", "Bearer " + Session.getToken())
+                    .GET().build();
 
-            Matcher m = Pattern.compile("\"id\":(\\d+),\"username\":\"([^\"]+)\"").matcher(body);
+            // Оба запроса параллельно
+            var usersFuture = client.sendAsync(usersReq, HttpResponse.BodyHandlers.ofString());
+            var chatsFuture = client.sendAsync(chatsReq, HttpResponse.BodyHandlers.ofString());
+
+            String usersBody = usersFuture.get().body();
+            String chatsBody = chatsFuture.get().body();
+
+            // Парсим пользователей
+            allUserIds.clear(); allUsernames.clear();
+            Matcher m = Pattern.compile("\"id\":(\\d+),\"username\":\"([^\"]+)\"").matcher(usersBody);
             while (m.find()) {
-                if (m.group(2).equals(username)) {
-                    currentUserId = Long.parseLong(m.group(1));
-                    break;
+                long uid = Long.parseLong(m.group(1));
+                String uname = m.group(2);
+                allUserIds.add(uid);
+                allUsernames.add(uname);
+                if (uname.equals(username)) currentUserId = uid;
+            }
+
+            // Парсим чаты
+            chatIds.clear(); chatNames.clear(); chatTypes.clear();
+            Pattern blockPat = Pattern.compile("\\{[^{}]*\"nameChat\"[^{}]*\\}", Pattern.DOTALL);
+            Matcher blockM = blockPat.matcher(chatsBody);
+            while (blockM.find()) {
+                String block = blockM.group();
+                Matcher idM   = Pattern.compile("\"id\":\"([^\"]+)\"").matcher(block);
+                Matcher nameM = Pattern.compile("\"nameChat\":\"([^\"]+)\"").matcher(block);
+                Matcher typeM = Pattern.compile("\"type\":\"([^\"]+)\"").matcher(block);
+                if (idM.find() && nameM.find()) {
+                    chatIds.add(idM.group(1));
+                    chatNames.add(nameM.group(1));
+                    chatTypes.add(typeM.find() ? typeM.group(1) : "PRIVATE");
                 }
             }
+
+            Platform.runLater(this::renderChats);
         } catch (Exception e) {
             e.printStackTrace();
+            Platform.runLater(() -> showError("Ошибка загрузки: " + e.getMessage()));
         }
+    }
+
+    private void loadCurrentUser() {
+        // Оставлен для совместимости, основная загрузка в loadUsersAndChats
     }
 
     private String extractUsernameFromToken() {
@@ -120,41 +155,33 @@ public class ChatsController {
     // ─── Загрузка проектов (чаты групп) ──────────────────────────────────────
 
     private void loadChats() {
-        chatIds.clear();
-        chatNames.clear();
-        chatTypes.clear();
-        try {
-            HttpRequest req = HttpRequest.newBuilder()
-                    .uri(URI.create(Session.API_BASE + "/chat/rooms"))
-                    .header("Authorization", "Bearer " + Session.getToken())
-                    .GET().build();
-            String body = client.send(req, HttpResponse.BodyHandlers.ofString()).body();
-
-            System.out.println(">>> CHATS BODY: " + body);  // отладка
-
-            // Парсим каждый объект ChatRoom: от { до }
-            Pattern blockPat = Pattern.compile("\\{[^{}]*\"nameChat\"[^{}]*\\}", Pattern.DOTALL);
-            Matcher blockM = blockPat.matcher(body);
-            while (blockM.find()) {
-                String block = blockM.group();
-                System.out.println(">>> BLOCK: " + block);  // отладка
-
-                Matcher idM   = Pattern.compile("\"id\":\"([^\"]+)\"").matcher(block);
-                Matcher nameM = Pattern.compile("\"nameChat\":\"([^\"]+)\"").matcher(block);
-                Matcher typeM = Pattern.compile("\"type\":\"([^\"]+)\"").matcher(block);
-
-                if (idM.find() && nameM.find()) {
-                    chatIds.add(idM.group(1));
-                    chatNames.add(nameM.group(1));
-                    chatTypes.add(typeM.find() ? typeM.group(1) : "PRIVATE");
-                    System.out.println(">>> ADDED: " + idM.group(1) + " " + nameM.group(1));
+        Thread.ofVirtual().start(() -> {
+            chatIds.clear(); chatNames.clear(); chatTypes.clear();
+            try {
+                HttpRequest req = HttpRequest.newBuilder()
+                        .uri(URI.create(Session.API_BASE + "/chat/rooms"))
+                        .header("Authorization", "Bearer " + Session.getToken())
+                        .GET().build();
+                String body = client.send(req, HttpResponse.BodyHandlers.ofString()).body();
+                Pattern blockPat = Pattern.compile("\\{[^{}]*\"nameChat\"[^{}]*\\}", Pattern.DOTALL);
+                Matcher blockM = blockPat.matcher(body);
+                while (blockM.find()) {
+                    String block = blockM.group();
+                    Matcher idM   = Pattern.compile("\"id\":\"([^\"]+)\"").matcher(block);
+                    Matcher nameM = Pattern.compile("\"nameChat\":\"([^\"]+)\"").matcher(block);
+                    Matcher typeM = Pattern.compile("\"type\":\"([^\"]+)\"").matcher(block);
+                    if (idM.find() && nameM.find()) {
+                        chatIds.add(idM.group(1));
+                        chatNames.add(nameM.group(1));
+                        chatTypes.add(typeM.find() ? typeM.group(1) : "PRIVATE");
+                    }
                 }
+            } catch (Exception e) {
+                Platform.runLater(() -> showError("Ошибка загрузки чатов: " + e.getMessage()));
+                e.printStackTrace();
             }
-        } catch (Exception e) {
-            showError("Ошибка загрузки чатов: " + e.getMessage());
-            e.printStackTrace();
-        }
-        renderChats();
+            Platform.runLater(this::renderChats);
+        });
     }
 
     // ─── Рендер списка чатов ──────────────────────────────────────────────────
