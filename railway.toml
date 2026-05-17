@@ -1,0 +1,7 @@
+[build]
+builder = "NIXPACKS"
+
+[deploy]
+startCommand = "java -Dspring.profiles.active=prod -jar target/pre-0.0.1-SNAPSHOT.jar"
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3
