@@ -34,9 +34,9 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(403).body(Map.of("error", e.getMessage()));
     }
 
-    // Не найдено — 404 Not Found
+    // Ошибка сервера — 500
     @ExceptionHandler(RuntimeException.class)
-    public ResponseEntity<?> handleNotFound(RuntimeException e) {
-        return ResponseEntity.status(404).body(Map.of("error", e.getMessage()));
+    public ResponseEntity<?> handleServerError(RuntimeException e) {
+        return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
     }
 }
