@@ -93,8 +93,18 @@ public class ChatRoomService {
         chatRoomRepository.deleteById(roomId);
     }
 
-    public List<ChatRoom> getUserRooms(Long userId){
-        return chatRoomRepository.findByMemberIdsContaining(userId);
+    public List<ChatRoom> getUserRooms(Long currentUserId){
+        List<ChatRoom> rooms = chatRoomRepository.findByMemberIdsContaining(currentUserId);
+        for (ChatRoom room : rooms) {
+            if (room.getType() == ChatRoomType.PRIVATE) {
+                room.getMemberIds().stream()
+                        .filter(id -> !id.equals(currentUserId))
+                        .findFirst()
+                        .flatMap(userRepository::findById)
+                        .ifPresent(other -> room.setNameChat(other.getUsername()));
+            }
+        }
+        return rooms;
     }
 
     public ChatRoom getRoom(String roomId){
@@ -103,6 +113,18 @@ public class ChatRoomService {
             throw new IllegalArgumentException("Комната не найдена");
         }
         return existing.get();
+    }
+
+    public ChatRoom getRoom(String roomId, Long currentUserId){
+        ChatRoom room = getRoom(roomId);
+        if (room.getType() == ChatRoomType.PRIVATE) {
+            room.getMemberIds().stream()
+                    .filter(id -> !id.equals(currentUserId))
+                    .findFirst()
+                    .flatMap(userRepository::findById)
+                    .ifPresent(other -> room.setNameChat(other.getUsername()));
+        }
+        return room;
     }
 
     public boolean isRoomMember(String roomId, Long userId) {

@@ -358,7 +358,6 @@ public class ChatsController {
                 String sendFrame = "SEND\n" +
                         "destination:/app/chat\n" +
                         "content-type:application/json\n" +
-                        "content-length:" + json.length() + "\n" +
                         "\n" +
                         json +
                         "\u0000";
@@ -627,14 +626,22 @@ public class ChatsController {
 
     private HBox buildBubble(String text, boolean isMine, String senderName) {
         Label lbl = new Label(text);
-        if (!isMine) { Label nameLbl = new Label(senderName); }
         lbl.setWrapText(true);
         lbl.setMaxWidth(280);
         lbl.setPadding(new Insets(8, 12, 8, 12));
         lbl.setStyle("-fx-background-color: " + (isMine ? "#FAA030" : "#E0E0E0")
                 + "; -fx-background-radius: 18; -fx-font-size: 13;");
 
-        HBox box = new HBox(lbl);
+        VBox bubble = new VBox(2);
+        if (!isMine) {
+            Label nameLbl = new Label(senderName);
+            nameLbl.setStyle("-fx-font-size: 11; -fx-text-fill: #888;");
+            bubble.getChildren().add(nameLbl);
+        }
+        bubble.getChildren().add(lbl);
+        bubble.setMaxWidth(300);
+
+        HBox box = new HBox(bubble);
         box.setAlignment(isMine ? Pos.CENTER_RIGHT : Pos.CENTER_LEFT);
         box.setMaxWidth(Double.MAX_VALUE);
         return box;
@@ -672,22 +679,41 @@ public class ChatsController {
         ButtonType createBtn = new ButtonType("Создать", ButtonBar.ButtonData.OK_DONE);
         dialog.getDialogPane().getButtonTypes().addAll(createBtn, ButtonType.CANCEL);
 
+        Label titleLabel = new Label("Название чата:");
         TextField titleField = new TextField();
         titleField.setPromptText("Название чата...");
         titleField.setStyle("-fx-background-color: #E0E0E0; -fx-background-radius: 8; -fx-padding: 8;");
 
-        Label choiceType = new Label("Выберите тип чата");
         RadioButton button1 = new RadioButton("Личные сообщения");
         RadioButton button2 = new RadioButton("Общий чат");
         ToggleGroup group = new ToggleGroup();
         button1.setToggleGroup(group);
         button2.setToggleGroup(group);
         button1.setSelected(true);
-        //descField.setPrefRowCount(3);
-        //descField.setStyle("-fx-background-color: #E0E0E0; -fx-background-radius: 8;");
 
-        TextField searchField = new TextField();
-        searchField.setPromptText("Никнейм участника");
+        // Поле названия скрыто для личных чатов
+        titleLabel.setVisible(false);
+        titleLabel.setManaged(false);
+        titleField.setVisible(false);
+        titleField.setManaged(false);
+
+        button1.setOnAction(e -> {
+            titleLabel.setVisible(false); titleLabel.setManaged(false);
+            titleField.setVisible(false); titleField.setManaged(false);
+        });
+        button2.setOnAction(e -> {
+            titleLabel.setVisible(true); titleLabel.setManaged(true);
+            titleField.setVisible(true); titleField.setManaged(true);
+        });
+
+        ComboBox<String> userCombo = new ComboBox<>();
+        userCombo.setPromptText("Выберите участника");
+        userCombo.setPrefWidth(250);
+        for (int i = 0; i < allUsernames.size(); i++) {
+            if (!allUserIds.get(i).equals(currentUserId)) {
+                userCombo.getItems().add(allUsernames.get(i));
+            }
+        }
         Button addBtn = new Button("Добавить");
         Label searchStatus = new Label();
 
@@ -696,31 +722,28 @@ public class ChatsController {
         ListView<String> selectedList = new ListView<>(selectedNames);
         selectedList.setPrefHeight(100);
 
+        // Для группового чата — список участников; для личного — один ComboBox
         addBtn.setOnAction(e -> {
-            String query = searchField.getText().trim();
-            if (query.isBlank()) return;
-            int i = allUsernames.indexOf(query);
-
-            if (i < 0) {
-                searchStatus.setText("Пользователь «" + query + "» не найден");
-                return;
-            }
+            String selected = userCombo.getSelectionModel().getSelectedItem();
+            if (selected == null) return;
+            int i = allUsernames.indexOf(selected);
+            if (i < 0) return;
             Long uid = allUserIds.get(i);
             if (selectedIds.contains(uid)) {
                 searchStatus.setText("Уже добавлен");
                 return;
             }
             selectedIds.add(uid);
-            selectedNames.add(query);
-            searchField.clear();
+            selectedNames.add(selected);
+            userCombo.getSelectionModel().clearSelection();
             searchStatus.setText("");
         });
 
         VBox content = new VBox(8,
-                new Label("Назовите чат:"), titleField,
-                new Label("Выберите тип чата"), button1, button2,
+                new Label("Выберите тип чата:"), button1, button2,
+                titleLabel, titleField,
                 new Label("Добавить участников:"),
-                new HBox(5, searchField, addBtn),
+                new HBox(5, userCombo, addBtn),
                 searchStatus,
                 selectedList);
         content.setPrefWidth(340);
@@ -728,16 +751,31 @@ public class ChatsController {
 
         dialog.showAndWait().ifPresent(btn -> {
             if (btn != createBtn) return;
-            String t = titleField.getText().trim();
-            if (t.isBlank()) { showError("Название не может быть пустым"); return; }
-            if(selectedIds.size() != 1 && button1.isSelected() && !button2.isSelected()){
-                showError("В личный чат можно добавить только одного собеседника");
-                return;
+            boolean isPrivate = button1.isSelected();
+            if (isPrivate) {
+                // Для личного чата нужен ровно один участник
+                String selected = userCombo.getSelectionModel().getSelectedItem();
+                if (selected == null && selectedIds.isEmpty()) {
+                    showError("Выберите собеседника");
+                    return;
+                }
+                // Если не нажали "Добавить" — берём текущий выбор в комбобоксе
+                if (selectedIds.isEmpty() && selected != null) {
+                    int i = allUsernames.indexOf(selected);
+                    if (i >= 0) { selectedIds.add(allUserIds.get(i)); selectedNames.add(selected); }
+                }
+                if (selectedIds.size() != 1) {
+                    showError("В личный чат можно добавить только одного собеседника");
+                    return;
+                }
+                String chatName = selectedNames.get(0);
+                Thread.ofVirtual().start(() -> { CreateChat(chatName, selectedIds, true); loadChats(); });
+            } else {
+                String t = titleField.getText().trim();
+                if (t.isBlank()) { showError("Введите название группового чата"); return; }
+                if (selectedIds.isEmpty()) { showError("Добавьте хотя бы одного участника"); return; }
+                Thread.ofVirtual().start(() -> { CreateChat(t, selectedIds, false); loadChats(); });
             }
-            Thread.ofVirtual().start(() -> {
-                CreateChat(t, selectedIds, button1.isSelected());
-                loadChats();
-            });
         });
     }
 

@@ -125,7 +125,7 @@ public class ChatController {
     @GetMapping("/chat/rooms/{roomId}")
     public ResponseEntity<ChatRoom> getRoom(@PathVariable String roomId) {
         Long currentUserId = getCurrentUserId();
-        ChatRoom room = chatRoomService.getRoom(roomId);
+        ChatRoom room = chatRoomService.getRoom(roomId, currentUserId);
         if (!room.isMember(currentUserId)) {
             throw new SecurityException("Нет доступа");
         }
