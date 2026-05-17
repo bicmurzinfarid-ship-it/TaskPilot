@@ -398,6 +398,10 @@ public class ChatsController {
     }
 
     private void loadHistory(String roomId, VBox messageBox, ScrollPane scroll) {
+        Thread.ofVirtual().start(() -> loadHistoryAsync(roomId, messageBox, scroll));
+    }
+
+    private void loadHistoryAsync(String roomId, VBox messageBox, ScrollPane scroll) {
         try {
             HttpRequest req = HttpRequest.newBuilder()
                     .uri(URI.create(Session.API_BASE + "/chat/rooms/" + roomId + "/messages"))
@@ -405,53 +409,47 @@ public class ChatsController {
                     .GET().build();
             String body = client.send(req, HttpResponse.BodyHandlers.ofString()).body();
 
-            messageBox.getChildren().clear();
-
-            if (body == null || body.isBlank() || body.equals("[]")) {
-                Label noMsg = new Label("Сообщений пока нет.\nБудьте первым!");
-                noMsg.setStyle("-fx-text-fill: #AAA; -fx-font-size: 13; -fx-padding: 20;");
-                noMsg.setWrapText(true);
-                messageBox.getChildren().add(noMsg);
-                return;
-            }
-
-            // Парсим сообщения
-            Pattern blockPat = Pattern.compile("\\{[^{}]*\"content\"[^{}]*\\}", Pattern.DOTALL);
-            Matcher blockM = blockPat.matcher(body);
+            List<HBox> bubbles = new ArrayList<>();
             boolean hasMessages = false;
 
-            while (blockM.find()) {
-                String block = blockM.group();
-                Matcher contentM = Pattern.compile("\"content\":\"([^\"]+)\"").matcher(block);
-                Matcher senderM  = Pattern.compile("\"senderId\":(\\d+)").matcher(block);
-                Matcher nameM    = Pattern.compile("\"senderName\":\"([^\"]*)\"").matcher(block);
-
-                if (contentM.find()) {
-                    hasMessages = true;
-                    String content = contentM.group(1);
-                    long senderId = senderM.find() ? Long.parseLong(senderM.group(1)) : -1;
-                    String senderName = nameM.find() ? nameM.group(1) : "Неизвестный";
-
-                    boolean isMine = senderId == currentUserId;
-                    HBox bubble = buildBubble(content, isMine, senderName);
-                    messageBox.getChildren().add(bubble);
+            if (body != null && !body.isBlank() && !body.equals("[]")) {
+                Pattern blockPat = Pattern.compile("\\{[^{}]*\"content\"[^{}]*\\}", Pattern.DOTALL);
+                Matcher blockM = blockPat.matcher(body);
+                while (blockM.find()) {
+                    String block = blockM.group();
+                    Matcher contentM = Pattern.compile("\"content\":\"([^\"]+)\"").matcher(block);
+                    Matcher senderM  = Pattern.compile("\"senderId\":(\\d+)").matcher(block);
+                    Matcher nameM    = Pattern.compile("\"senderName\":\"([^\"]*)\"").matcher(block);
+                    if (contentM.find()) {
+                        hasMessages = true;
+                        String content = contentM.group(1);
+                        long senderId = senderM.find() ? Long.parseLong(senderM.group(1)) : -1;
+                        String senderName = nameM.find() ? nameM.group(1) : "Неизвестный";
+                        bubbles.add(buildBubble(content, senderId == currentUserId, senderName));
+                    }
                 }
             }
 
-            if (!hasMessages) {
-                Label noMsg = new Label("Сообщений пока нет.\nБудьте первым!");
-                noMsg.setStyle("-fx-text-fill: #AAA; -fx-font-size: 13; -fx-padding: 20;");
-                noMsg.setWrapText(true);
-                messageBox.getChildren().add(noMsg);
-            }
-
-            // Прокрутка вниз
-            Platform.runLater(() -> scroll.setVvalue(1.0));
+            boolean finalHasMessages = hasMessages;
+            Platform.runLater(() -> {
+                messageBox.getChildren().clear();
+                if (finalHasMessages) {
+                    messageBox.getChildren().addAll(bubbles);
+                } else {
+                    Label noMsg = new Label("Сообщений пока нет.\nБудьте первым!");
+                    noMsg.setStyle("-fx-text-fill: #AAA; -fx-font-size: 13; -fx-padding: 20;");
+                    noMsg.setWrapText(true);
+                    messageBox.getChildren().add(noMsg);
+                }
+                scroll.setVvalue(1.0);
+            });
 
         } catch (Exception e) {
-            Label err = new Label("Ошибка загрузки сообщений: " + e.getMessage());
-            err.setStyle("-fx-text-fill: #CC0000;");
-            messageBox.getChildren().add(err);
+            Platform.runLater(() -> {
+                Label err = new Label("Ошибка загрузки сообщений: " + e.getMessage());
+                err.setStyle("-fx-text-fill: #CC0000;");
+                messageBox.getChildren().add(err);
+            });
         }
     }
 
@@ -731,8 +729,10 @@ public class ChatsController {
                 showError("В личный чат можно добавить только одного собеседника");
                 return;
             }
-            CreateChat(t, selectedIds, button1.isSelected());
-            loadChats();
+            Thread.ofVirtual().start(() -> {
+                CreateChat(t, selectedIds, button1.isSelected());
+                loadChats();
+            });
         });
     }
 
