@@ -13,12 +13,16 @@ public class ProjectService {
     private final UserRepository userRepository;
     private final TaskRepository taskRepository;
 
+    private final ChatRoomService chatRoomService;
+
     public ProjectService(ProjectRepository projectRepository,
                           UserRepository userRepository,
-                          TaskRepository taskRepository) {
+                          TaskRepository taskRepository,
+                          ChatRoomService chatRoomService) {
         this.projectRepository = projectRepository;
         this.userRepository = userRepository;
         this.taskRepository = taskRepository;
+        this.chatRoomService = chatRoomService;
     }
 
     // ─── Вспомогательный метод ────────────────────────────────────────────────
@@ -252,7 +256,28 @@ public class ProjectService {
             throw new SecurityException("Нет доступа к этому проекту");
         }
 
-        // Spring Data JPA — добавим метод в TaskRepository ниже
         return taskRepository.findByProjectId(projectId);
+    }
+
+    @Transactional
+    public Project createProjectChat(Long projectId) {
+        Project project = getProjectOrThrow(projectId);
+        User current = getCurrentUser();
+
+        if (!project.isManager(current.getId())) {
+            throw new SecurityException("Только создатель или тимлид может создать чат");
+        }
+        if (project.getChatRoomId() != null) {
+            return project;
+        }
+
+        List<Long> memberIds = project.getMembers().stream()
+                .map(User::getId)
+                .filter(id -> !id.equals(current.getId()))
+                .toList();
+
+        ChatRoom room = chatRoomService.createGroupChat(current.getId(), project.getName(), memberIds);
+        project.setChatRoomId(room.getId());
+        return projectRepository.save(project);
     }
 }

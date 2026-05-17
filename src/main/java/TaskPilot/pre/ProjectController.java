@@ -120,6 +120,15 @@ public class ProjectController {
     // ─── Задачи проекта ───────────────────────────────────────────────────────
 
     /**
+     * Создать групповой чат для проекта (все участники).
+     * Права: создатель или тимлид.
+     */
+    @PostMapping("/{id}/chat")
+    public ResponseEntity<Project> createProjectChat(@PathVariable Long id) {
+        return ResponseEntity.ok(projectService.createProjectChat(id));
+    }
+
+    /**
      * Создать задачу в проекте.
      * Права: создатель или тимлид.
      * Тело: { "title": "...", "description": "...", "assigneeId": 2, "deadline": "2026-04-15T12:00:00", "importance": 4 }

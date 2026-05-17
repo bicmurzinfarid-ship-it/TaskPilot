@@ -39,6 +39,9 @@ public class Project {
     @Column(name = "team_lead_id")
     private Long teamLeadId;
 
+    @Column(name = "chat_room_id")
+    private String chatRoomId;
+
     /**
      * Список участников проекта.
      *
@@ -97,6 +100,9 @@ public class Project {
     public boolean isManager(Long userId) {
         return isCreator(userId) || isTeamLead(userId);
     }
+
+    public String getChatRoomId() { return chatRoomId; }
+    public void setChatRoomId(String chatRoomId) { this.chatRoomId = chatRoomId; }
 
     public boolean isMember(Long userId) {
         return members.stream().anyMatch(u -> u.getId().equals(userId));

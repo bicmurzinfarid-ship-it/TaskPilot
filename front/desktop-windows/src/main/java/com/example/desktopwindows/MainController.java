@@ -335,6 +335,8 @@ public class MainController {
         ProjectDetails details = loadProjectDetails(projectId);
         boolean isCreator = details.creatorId() != null
                 && details.creatorId().equals(Session.getUserId());
+        boolean isManager = isCreator ||
+                (details.teamLeadId() != null && details.teamLeadId().equals(Session.getUserId()));
 
         // ─── Вкладка Информация ───────────────────────────────────────────────
         ScrollPane infoScroll = new ScrollPane();
@@ -347,10 +349,8 @@ public class MainController {
         // ─── Вкладка Доска ────────────────────────────────────────────────────
         VBox boardTab = buildBoardTab(projectId, details);
 
-        // ─── Вкладка Чат (заглушка) ───────────────────────────────────────────
-        VBox chatTab = new VBox();
-        chatTab.setStyle("-fx-background-color: #F5F0EB; -fx-alignment: CENTER;");
-        chatTab.getChildren().add(new Label("Чат будет реализован позже"));
+        // ─── Вкладка Чат ─────────────────────────────────────────────────────
+        VBox chatTab = buildChatTab(projectId, projectName, details, isManager);
 
         // ─── TabPane ──────────────────────────────────────────────────────────
         Tab tabInfo = new Tab("Информация", infoScroll);
@@ -898,7 +898,7 @@ private void createProjectTask(Long projectId, String title, String description,
         showManageDialog(projectIds.get(idx));
     }
 
-    private record ProjectDetails(Long creatorId, Long teamLeadId, List<Long> memberIds, List<String> memberNames) {}
+    private record ProjectDetails(Long creatorId, Long teamLeadId, List<Long> memberIds, List<String> memberNames, String chatRoomId) {}
 
     private ProjectDetails loadProjectDetails(Long projectId) {
         try {
@@ -917,6 +917,10 @@ private void createProjectTask(Long projectId, String title, String description,
             Matcher tlm = Pattern.compile("\"teamLeadId\":(\\d+)").matcher(body);
             if (tlm.find()) teamLeadId = Long.parseLong(tlm.group(1));
 
+            String chatRoomId = null;
+            Matcher crm2 = Pattern.compile("\"chatRoomId\":\"([^\"]+)\"").matcher(body);
+            if (crm2.find()) chatRoomId = crm2.group(1);
+
             List<Long> memberIds = new ArrayList<>();
             List<String> memberNames = new ArrayList<>();
             int membersStart = body.indexOf("\"members\":[");
@@ -928,11 +932,237 @@ private void createProjectTask(Long projectId, String title, String description,
                     memberNames.add(mm.group(2));
                 }
             }
-            return new ProjectDetails(creatorId, teamLeadId, memberIds, memberNames);
+            return new ProjectDetails(creatorId, teamLeadId, memberIds, memberNames, chatRoomId);
         } catch (Exception e) {
             showError("Ошибка загрузки данных проекта: " + e.getMessage());
-            return new ProjectDetails(null, null, new ArrayList<>(), new ArrayList<>());
+            return new ProjectDetails(null, null, new ArrayList<>(), new ArrayList<>(), null);
         }
+    }
+
+    private org.java_websocket.client.WebSocketClient projectWs = null;
+
+    private VBox buildChatTab(Long projectId, String projectName, ProjectDetails details, boolean isManager) {
+        VBox root = new VBox();
+        root.setStyle("-fx-background-color: #F5F0EB;");
+
+        if (details.chatRoomId() == null) {
+            VBox center = new VBox(12);
+            center.setAlignment(Pos.CENTER);
+            center.setPadding(new Insets(40));
+            if (isManager) {
+                Label lbl = new Label("Чат для проекта ещё не создан");
+                lbl.setStyle("-fx-text-fill: #888; -fx-font-size: 14;");
+                Button createBtn = new Button("Создать чат проекта");
+                createBtn.setStyle("-fx-background-color: #FAA030; -fx-text-fill: white;"
+                        + " -fx-font-weight: bold; -fx-background-radius: 8; -fx-padding: 8 20;");
+                createBtn.setOnAction(e -> {
+                    Thread.ofVirtual().start(() -> {
+                        try {
+                            HttpRequest req = HttpRequest.newBuilder()
+                                    .uri(URI.create(Session.API_BASE + "/project/" + projectId + "/chat"))
+                                    .header("Authorization", "Bearer " + Session.getToken())
+                                    .POST(HttpRequest.BodyPublishers.noBody())
+                                    .build();
+                            HttpResponse<String> resp = client.send(req, HttpResponse.BodyHandlers.ofString());
+                            if (resp.statusCode() == 200) {
+                                Matcher m = Pattern.compile("\"chatRoomId\":\"([^\"]+)\"").matcher(resp.body());
+                                if (m.find()) {
+                                    String roomId = m.group(1);
+                                    Platform.runLater(() -> {
+                                        root.getChildren().clear();
+                                        buildChatRoomUI(root, roomId, projectName, details);
+                                    });
+                                }
+                            } else {
+                                Platform.runLater(() -> showError("Ошибка создания чата: " + resp.body()));
+                            }
+                        } catch (Exception ex) {
+                            Platform.runLater(() -> showError("Ошибка: " + ex.getMessage()));
+                        }
+                    });
+                });
+                center.getChildren().addAll(lbl, createBtn);
+            } else {
+                Label lbl = new Label("Чат ещё не создан.\nОбратитесь к создателю или тимлиду проекта.");
+                lbl.setStyle("-fx-text-fill: #888; -fx-font-size: 14;");
+                lbl.setWrapText(true);
+                lbl.setTextAlignment(javafx.scene.text.TextAlignment.CENTER);
+                center.getChildren().add(lbl);
+            }
+            root.getChildren().add(center);
+            VBox.setVgrow(center, Priority.ALWAYS);
+        } else {
+            buildChatRoomUI(root, details.chatRoomId(), projectName, details);
+        }
+        return root;
+    }
+
+    private void buildChatRoomUI(VBox root, String roomId, String projectName, ProjectDetails details) {
+        long myId = Session.getUserId() != null ? Session.getUserId() : -1L;
+
+        VBox messageBox = new VBox(8);
+        messageBox.setPadding(new Insets(10));
+        ScrollPane scroll = new ScrollPane(messageBox);
+        scroll.setFitToWidth(true);
+        scroll.setStyle("-fx-background-color: transparent; -fx-background: #F5F0EB;");
+        VBox.setVgrow(scroll, Priority.ALWAYS);
+
+        // Загружаем историю
+        Thread.ofVirtual().start(() -> {
+            try {
+                HttpRequest req = HttpRequest.newBuilder()
+                        .uri(URI.create(Session.API_BASE + "/chat/rooms/" + roomId + "/messages"))
+                        .header("Authorization", "Bearer " + Session.getToken())
+                        .GET().build();
+                String body = client.send(req, HttpResponse.BodyHandlers.ofString()).body();
+                List<HBox> bubbles = new ArrayList<>();
+                Pattern blockPat = Pattern.compile("\\{[^{}]*\"content\"[^{}]*\\}", Pattern.DOTALL);
+                Matcher blockM = blockPat.matcher(body);
+                while (blockM.find()) {
+                    String block = blockM.group();
+                    Matcher cm = Pattern.compile("\"content\":\"([^\"]+)\"").matcher(block);
+                    Matcher sm = Pattern.compile("\"senderId\":(\\d+)").matcher(block);
+                    Matcher nm = Pattern.compile("\"senderName\":\"([^\"]*)\"").matcher(block);
+                    if (cm.find()) {
+                        long sid = sm.find() ? Long.parseLong(sm.group(1)) : -1;
+                        String sname = nm.find() ? nm.group(1) : "?";
+                        bubbles.add(buildProjectBubble(cm.group(1), sid == myId, sname));
+                    }
+                }
+                Platform.runLater(() -> {
+                    if (bubbles.isEmpty()) {
+                        Label noMsg = new Label("Сообщений пока нет");
+                        noMsg.setStyle("-fx-text-fill: #AAA; -fx-font-size: 13; -fx-padding: 20;");
+                        messageBox.getChildren().add(noMsg);
+                    } else {
+                        messageBox.getChildren().addAll(bubbles);
+                    }
+                    scroll.setVvalue(1.0);
+                });
+            } catch (Exception e) {
+                Platform.runLater(() -> {
+                    Label err = new Label("Ошибка загрузки: " + e.getMessage());
+                    err.setStyle("-fx-text-fill: #CC0000;");
+                    messageBox.getChildren().add(err);
+                });
+            }
+        });
+
+        // Поле ввода
+        TextField inputField = new TextField();
+        inputField.setPromptText("Сообщение...");
+        HBox.setHgrow(inputField, Priority.ALWAYS);
+        inputField.setStyle("-fx-background-radius: 20; -fx-padding: 8 12;");
+        Button sendBtn = new Button("➤");
+        sendBtn.setStyle("-fx-background-color: #FAA030; -fx-background-radius: 50;"
+                + " -fx-font-size: 14; -fx-padding: 6 12; -fx-cursor: hand;");
+
+        connectProjectWs(roomId, myId, messageBox, scroll);
+
+        Runnable sendAction = () -> {
+            String text = inputField.getText().trim();
+            if (text.isBlank()) return;
+            if (projectWs != null && projectWs.isOpen()) {
+                String escaped = text.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n");
+                String json = String.format("{\"roomId\":\"%s\",\"content\":\"%s\"}", roomId, escaped);
+                projectWs.send("SEND\ndestination:/app/chat\ncontent-type:application/json\n\n" + json + " ");
+                inputField.clear();
+            } else {
+                showError("Нет подключения к чату");
+            }
+        };
+        sendBtn.setOnAction(e -> sendAction.run());
+        inputField.setOnAction(e -> sendAction.run());
+
+        HBox inputBar = new HBox(8, inputField, sendBtn);
+        inputBar.setAlignment(Pos.CENTER);
+        inputBar.setPadding(new Insets(8));
+        inputBar.setStyle("-fx-background-color: #EEEEEE;");
+
+        root.getChildren().addAll(scroll, inputBar);
+    }
+
+    private void connectProjectWs(String roomId, long myId, VBox messageBox, ScrollPane scroll) {
+        try {
+            if (projectWs != null) { projectWs.close(); projectWs = null; }
+            URI wsUri = new URI(Session.API_BASE.replace("https://", "wss://").replace("http://", "ws://") + "/ws");
+            projectWs = new org.java_websocket.client.WebSocketClient(wsUri) {
+                @Override public void onOpen(org.java_websocket.handshake.ServerHandshake h) {
+                    send("CONNECT\naccept-version:1.2,1.1,1.0\nheart-beat:0,0\nAuthorization:Bearer "
+                            + Session.getToken() + "\n\n ");
+                }
+                @Override public void onMessage(String msg) {
+                    if (msg == null || msg.isBlank()) return;
+                    String[] parts = msg.split("\n\n", 2);
+                    String cmd = parts[0].split("\n")[0].trim();
+                    String body = parts.length > 1 ? parts[1].replace(" ", "") : "";
+                    if ("CONNECTED".equals(cmd)) {
+                        send("SUBSCRIBE\nid:sub-proj\ndestination:/topic/chat/" + roomId + "\nack:auto\n\n ");
+                    } else if ("MESSAGE".equals(cmd) && !body.isEmpty()) {
+                        String content = extractVal(body, "content");
+                        String senderIdStr = extractVal(body, "senderId");
+                        String senderName = extractVal(body, "senderName");
+                        String msgRoom = extractVal(body, "roomId");
+                        if (content == null || !roomId.equals(msgRoom)) return;
+                        long sid = senderIdStr != null ? Long.parseLong(senderIdStr) : -1;
+                        HBox bubble = buildProjectBubble(content, sid == myId, senderName != null ? senderName : "?");
+                        Platform.runLater(() -> {
+                            messageBox.getChildren().removeIf(n -> n instanceof Label l && l.getText().contains("пока нет"));
+                            messageBox.getChildren().add(bubble);
+                            scroll.layout(); scroll.setVvalue(1.0);
+                        });
+                    }
+                }
+                @Override public void onClose(int c, String r, boolean remote) {}
+                @Override public void onError(Exception ex) {}
+
+                private String extractVal(String json, String key) {
+                    String pat = "\"" + key + "\":";
+                    int ki = json.indexOf(pat);
+                    if (ki < 0) return null;
+                    int s = ki + pat.length();
+                    while (s < json.length() && Character.isWhitespace(json.charAt(s))) s++;
+                    if (s >= json.length()) return null;
+                    if (json.charAt(s) == '"') {
+                        int e = s + 1;
+                        while (e < json.length() && json.charAt(e) != '"') { if (json.charAt(e) == '\\') e++; e++; }
+                        return json.substring(s + 1, e);
+                    }
+                    int e = s;
+                    while (e < json.length() && (Character.isDigit(json.charAt(e)) || json.charAt(e) == '-')) e++;
+                    return json.substring(s, e);
+                }
+            };
+            if (wsUri.getScheme().equals("wss")) {
+                javax.net.ssl.SSLContext ssl = javax.net.ssl.SSLContext.getInstance("TLS");
+                ssl.init(null, null, null);
+                projectWs.setSocketFactory(ssl.getSocketFactory());
+            }
+            projectWs.connect();
+        } catch (Exception e) {
+            showError("Ошибка подключения к чату: " + e.getMessage());
+        }
+    }
+
+    private HBox buildProjectBubble(String text, boolean isMine, String senderName) {
+        Label lbl = new Label(text);
+        lbl.setWrapText(true);
+        lbl.setMaxWidth(280);
+        lbl.setPadding(new Insets(8, 12, 8, 12));
+        lbl.setStyle("-fx-background-color: " + (isMine ? "#FAA030" : "#E0E0E0")
+                + "; -fx-background-radius: 18; -fx-font-size: 13;");
+        VBox bubble = new VBox(2);
+        if (!isMine) {
+            Label nameLbl = new Label(senderName);
+            nameLbl.setStyle("-fx-font-size: 11; -fx-text-fill: #888;");
+            bubble.getChildren().add(nameLbl);
+        }
+        bubble.getChildren().add(lbl);
+        bubble.setMaxWidth(300);
+        HBox box = new HBox(bubble);
+        box.setAlignment(isMine ? Pos.CENTER_RIGHT : Pos.CENTER_LEFT);
+        box.setMaxWidth(Double.MAX_VALUE);
+        return box;
     }
 
     private void showManageDialog(Long projectId) {
@@ -960,20 +1190,34 @@ private void createProjectTask(Long projectId, String title, String description,
 
         // Добавить участника по поиску
         TextField addSearchField = new TextField();
-        addSearchField.setPromptText("Никнейм пользователя");
+        addSearchField.setPromptText("Поиск пользователя...");
+        addSearchField.setMaxWidth(Double.MAX_VALUE);
         Label addStatus = new Label();
-        Button addBtn = new Button("Добавить");
-        addBtn.setOnAction(e -> {
-            String query = addSearchField.getText().trim();
-            if (query.isBlank()) return;
-            int i = allUsernames.indexOf(query);
-            if (i < 0) { addStatus.setText("Не найден"); return; }
-            Long uid = allUserIds.get(i);
-            if (details[0].memberIds().contains(uid)) { addStatus.setText("Уже участник"); return; }
-            addMember(projectId, uid);
-            addSearchField.clear();
-            addStatus.setText("");
-            refresh.run();
+        ContextMenu addPopup = new ContextMenu();
+        addSearchField.textProperty().addListener((obs, old, newVal) -> {
+            addPopup.getItems().clear();
+            String q = newVal == null ? "" : newVal.trim().toLowerCase();
+            if (q.isEmpty()) { addPopup.hide(); return; }
+            for (String name : allUsernames) {
+                if (name.toLowerCase().contains(q) && !details[0].memberIds().contains(allUserIds.get(allUsernames.indexOf(name)))) {
+                    MenuItem mi = new MenuItem(name);
+                    mi.setOnAction(ev -> {
+                        int i = allUsernames.indexOf(name);
+                        if (i >= 0) {
+                            addMember(projectId, allUserIds.get(i));
+                            addSearchField.clear();
+                            addStatus.setText("");
+                            refresh.run();
+                        }
+                        addPopup.hide();
+                    });
+                    addPopup.getItems().add(mi);
+                }
+            }
+            if (!addPopup.getItems().isEmpty())
+                addPopup.show(addSearchField, javafx.geometry.Side.BOTTOM, 0, 0);
+            else
+                addPopup.hide();
         });
 
         // Удалить участника
@@ -1015,7 +1259,7 @@ private void createProjectTask(Long projectId, String title, String description,
                 teamLeadLabel,
                 new Separator(),
                 new Label("Добавить участника:"),
-                new HBox(5, addSearchField, addBtn),
+                addSearchField,
                 addStatus,
                 new Separator(),
                 new Label("Удалить участника:"),

@@ -647,6 +647,28 @@ public class ChatsController {
         return box;
     }
 
+    private ComboBox<String> makeFilterableUserCombo(List<String> source) {
+        ObservableList<String> all = FXCollections.observableArrayList(source);
+        ComboBox<String> combo = new ComboBox<>(all);
+        combo.setEditable(true);
+        combo.setPromptText("Начните вводить никнейм...");
+        combo.setPrefWidth(250);
+        combo.getEditor().textProperty().addListener((obs, oldVal, newVal) -> {
+            String filter = newVal == null ? "" : newVal.toLowerCase();
+            if (filter.isEmpty()) {
+                combo.setItems(all);
+            } else {
+                ObservableList<String> filtered = FXCollections.observableArrayList();
+                for (String name : all) {
+                    if (name.toLowerCase().contains(filter)) filtered.add(name);
+                }
+                combo.setItems(filtered);
+            }
+            if (!combo.isShowing()) combo.show();
+        });
+        return combo;
+    }
+
     private void loadAllUsers() {
         try {
             HttpRequest req = HttpRequest.newBuilder()
@@ -706,14 +728,11 @@ public class ChatsController {
             titleField.setVisible(true); titleField.setManaged(true);
         });
 
-        ComboBox<String> userCombo = new ComboBox<>();
-        userCombo.setPromptText("Выберите участника");
-        userCombo.setPrefWidth(250);
+        List<String> availableUsers = new ArrayList<>();
         for (int i = 0; i < allUsernames.size(); i++) {
-            if (!allUserIds.get(i).equals(currentUserId)) {
-                userCombo.getItems().add(allUsernames.get(i));
-            }
+            if (!allUserIds.get(i).equals(currentUserId)) availableUsers.add(allUsernames.get(i));
         }
+        ComboBox<String> userCombo = makeFilterableUserCombo(availableUsers);
         Button addBtn = new Button("Добавить");
         Label searchStatus = new Label();
 
@@ -833,15 +852,11 @@ public class ChatsController {
         dialog.setTitle("Добавить участника");
         dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
 
-        ComboBox<String> userCombo = new ComboBox<>();
-        userCombo.setPromptText("Выберите пользователя");
-        userCombo.setPrefWidth(250);
-
+        List<String> availableForAdd = new ArrayList<>();
         for (int i = 0; i < allUsernames.size(); i++) {
-            if (!allUserIds.get(i).equals(currentUserId)) {
-                userCombo.getItems().add(allUsernames.get(i));
-            }
+            if (!allUserIds.get(i).equals(currentUserId)) availableForAdd.add(allUsernames.get(i));
         }
+        ComboBox<String> userCombo = makeFilterableUserCombo(availableForAdd);
 
         VBox content = new VBox(10);
         content.setPadding(new Insets(10));
@@ -851,12 +866,15 @@ public class ChatsController {
         dialog.showAndWait().ifPresent(btn -> {
             if (btn == ButtonType.OK) {
                 String selected = userCombo.getSelectionModel().getSelectedItem();
-                if (selected != null) {
+                if (selected == null) selected = userCombo.getEditor().getText().trim();
+                if (selected != null && !selected.isEmpty()) {
                     int idx = allUsernames.indexOf(selected);
                     if (idx >= 0) {
                         addMemberToGroup(roomId, allUserIds.get(idx));
                         messageBox.getChildren().clear();
                         loadHistory(roomId, messageBox, scroll);
+                    } else {
+                        showError("Пользователь «" + selected + "» не найден");
                     }
                 }
             }
