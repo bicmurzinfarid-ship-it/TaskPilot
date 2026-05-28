@@ -26,7 +26,7 @@ public class AvatarLoader {
         "#F4511E", "#6D4C41", "#3949AB", "#039BE5"
     };
 
-    /** Загружает аватар синхронно (вызывать только из фонового потока). */
+    // синхронный вызов — только из фонового потока
     public static Image loadSync(Long userId) {
         if (userId == null) return null;
         if (cache.containsKey(userId)) return cache.get(userId);
@@ -47,15 +47,11 @@ public class AvatarLoader {
         return null;
     }
 
-    /** Сбрасывает кэш для пользователя (после смены аватара). */
     public static void invalidate(Long userId) {
         cache.remove(userId);
     }
 
-    /**
-     * Создаёт круглый аватар: сначала показывает инициал,
-     * затем асинхронно заменяет на фото если оно есть.
-     */
+    // сначала показывает инициал, затем асинхронно заменяет на фото
     public static StackPane make(Long userId, String name, double size) {
         StackPane pane = new StackPane();
         pane.setMinSize(size, size);

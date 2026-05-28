@@ -16,10 +16,7 @@ import java.util.UUID;
 @Service
 public class TaskAttachmentService {
 
-    /** Максимальный размер одного файла: 10 МБ */
     public static final long MAX_FILE_SIZE = 10L * 1024 * 1024;
-
-    /** Максимальное количество файлов на задачу */
     public static final int MAX_FILES_PER_TASK = 5;
 
     @Value("${taskpilot.upload.dir:./uploads}")
@@ -55,7 +52,6 @@ public class TaskAttachmentService {
         }
     }
 
-    /** Только исполнитель или менеджер проекта могут прикреплять файлы. */
     private void checkUploadAccess(Task task) {
         User current = getCurrentUser();
         Project project = projectRepo.findById(task.getProjectId())
@@ -81,36 +77,28 @@ public class TaskAttachmentService {
                 .orElseThrow(() -> new RuntimeException("Задача не найдена"));
         checkUploadAccess(task);
 
-        // Валидация размера
         if (file.getSize() > MAX_FILE_SIZE) {
             throw new IllegalArgumentException(
                 "Файл слишком большой. Максимальный размер: 10 МБ");
         }
-
-        // Валидация пустоты
         if (file.isEmpty()) {
             throw new IllegalArgumentException("Файл пустой");
         }
-
-        // Валидация количества файлов
         long count = attachmentRepo.countByTaskId(taskId);
         if (count >= MAX_FILES_PER_TASK) {
             throw new IllegalArgumentException(
                 "Достигнут лимит файлов. Максимум " + MAX_FILES_PER_TASK + " файлов на задачу");
         }
 
-        // Сохранение файла на диск
         Path taskDir = Paths.get(uploadDir, "tasks", taskId.toString());
         Files.createDirectories(taskDir);
 
         String originalName = file.getOriginalFilename();
         if (originalName == null || originalName.isBlank()) originalName = "file";
-        // Уникальное имя чтобы избежать коллизий
         String storedName = UUID.randomUUID() + "_" + originalName;
         Path filePath = taskDir.resolve(storedName);
         Files.copy(file.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
 
-        // Сохранение метаданных в БД
         TaskAttachment attachment = new TaskAttachment();
         attachment.setTaskId(taskId);
         attachment.setFileName(originalName);
@@ -140,12 +128,10 @@ public class TaskAttachmentService {
     public void deleteAttachment(Long attachmentId) {
         TaskAttachment attachment = attachmentRepo.findById(attachmentId)
                 .orElseThrow(() -> new RuntimeException("Файл не найден"));
-        // Удаляем с диска
         try { Files.deleteIfExists(Paths.get(attachment.getFilePath())); } catch (IOException ignored) {}
         attachmentRepo.deleteById(attachmentId);
     }
 
-    /** Удаляет все файлы задачи — вызывается при удалении задачи */
     @Transactional
     public void deleteAllByTaskId(Long taskId) {
         List<TaskAttachment> attachments = attachmentRepo.findByTaskId(taskId);

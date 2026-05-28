@@ -7,11 +7,6 @@ import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 import java.util.Map;
 
-/**
- * Глобальный обработчик исключений.
- * Перехватывает исключения из всех контроллеров и возвращает
- * понятный JSON с описанием ошибки вместо пустого 500.
- */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 

@@ -4,10 +4,7 @@ public class Session {
     private static String token;
     private static Long userId;
 
-    /**
-     * Базовый URL бэкенда. Можно переопределить через JVM-параметр:
-     *   -Dapi.url=http://192.168.1.42:8080
-     */
+    // можно переопределить через JVM-параметр: -Dapi.url=http://192.168.1.42:8080
     public static final String API_BASE =
             System.getProperty("api.url", "https://taskpilot-production-5a8d.up.railway.app");
 

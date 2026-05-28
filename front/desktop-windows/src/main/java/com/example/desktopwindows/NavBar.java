@@ -7,10 +7,6 @@ import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.VBox;
 
-/**
- * Левая боковая панель навигации.
- * Каждая кнопка: иконка сверху + подпись снизу.
- */
 public class NavBar {
 
     public enum Page { HOME, TASKS, CALENDAR, CHATS, SETTINGS }

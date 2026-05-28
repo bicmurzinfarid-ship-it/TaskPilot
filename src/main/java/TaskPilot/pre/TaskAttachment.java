@@ -23,7 +23,6 @@ public class TaskAttachment {
     @Column(nullable = false)
     private String contentType;
 
-    /** Путь к файлу на диске относительно корня загрузок */
     @Column(nullable = false, length = 512)
     private String filePath;
 

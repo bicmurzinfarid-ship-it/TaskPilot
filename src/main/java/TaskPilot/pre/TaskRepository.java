@@ -6,10 +6,6 @@ import java.util.List;
 
 public interface TaskRepository extends JpaRepository<Task, Long> {
 
-    /**
-     * Найти все задачи проекта.
-     * Spring Data JPA генерирует: SELECT * FROM tasks WHERE project_id = ?
-     */
     List<Task> findByProjectId(Long projectId);
 
     void deleteByProjectId(Long projectId);

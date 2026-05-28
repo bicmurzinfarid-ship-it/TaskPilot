@@ -71,8 +71,6 @@ public class TasksController {
         loadTasks();
     }
 
-    // ─── Загрузка задач ───────────────────────────────────────────────────────
-
     private void loadTasks() {
         ids.clear(); titles.clear(); statuses.clear(); deadlines.clear();
         assigneeIds.clear(); creatorIds.clear(); importances.clear();
@@ -118,8 +116,6 @@ public class TasksController {
             taskProjectIds.add(projectM.find() ? Long.parseLong(projectM.group(1)) : null);
         }
     }
-
-    // ─── Рендер ───────────────────────────────────────────────────────────────
 
     private void renderTasks() {
         taskListBox.getChildren().clear();
@@ -237,8 +233,6 @@ public class TasksController {
         };
     }
 
-    // ─── Детали задачи ────────────────────────────────────────────────────────
-
     private void showTaskDetail(int i) {
         Dialog<Void> dialog = new Dialog<>();
         dialog.setTitle("Задача: " + titles.get(i));
@@ -255,7 +249,7 @@ public class TasksController {
         Label deadlineLbl = new Label("Дедлайн: " + (dl != null ? dl.replace("T", "  ") : "не задан"));
         deadlineLbl.setStyle("-fx-font-size: 13;");
 
-        // Определяем роль
+        // определяем роль для разрешений на изменение статуса
         Long me = Session.getUserId();
         Long taskProjId = taskProjectIds.get(i);
         long[] projInfo = fetchProjectInfo(taskProjId);
@@ -264,7 +258,7 @@ public class TasksController {
                 && (me.equals(projInfo[0]) || me.equals(projInfo[1]));
         boolean isAssignee = me != null && me.equals(assigneeIds.get(i));
 
-        // Комбобокс статуса — опции зависят от роли
+        // доступные статусы зависят от роли: менеджер видит все, исполнитель — без READY
         Label changeLabel = new Label("Изменить статус:");
         changeLabel.setStyle("-fx-font-size: 13; -fx-font-weight: bold;");
         ComboBox<String> statusBox = new ComboBox<>();
@@ -291,7 +285,6 @@ public class TasksController {
             }
         });
 
-        // Вложения
         VBox attachPanel = buildAttachmentPanel(ids.get(i), isAssignee || isManager);
 
         box.getChildren().addAll(
@@ -318,9 +311,7 @@ public class TasksController {
         };
     }
 
-    // ─── Статус ───────────────────────────────────────────────────────────────
-
-    /** Отправляет новый статус. Возвращает true если сервер принял. */
+    // возвращает true если сервер принял новый статус
     private boolean updateStatus(Long taskId, String status) {
         try {
             HttpRequest req = HttpRequest.newBuilder()
@@ -339,9 +330,7 @@ public class TasksController {
         }
     }
 
-    // ─── Информация о проекте ─────────────────────────────────────────────────
-
-    /** Возвращает [creatorId, teamLeadId] для проекта. Кэширует результат. */
+    // возвращает [creatorId, teamLeadId], результат кэшируется
     private long[] fetchProjectInfo(Long projectId) {
         if (projectId == null) return null;
         if (projectInfoMap.containsKey(projectId)) return projectInfoMap.get(projectId);
@@ -361,8 +350,6 @@ public class TasksController {
         } catch (Exception ignored) {}
         return null;
     }
-
-    // ─── Вложения ─────────────────────────────────────────────────────────────
 
     private VBox buildAttachmentPanel(Long taskId, boolean canUpload) {
         VBox panel = new VBox(5);
@@ -510,8 +497,6 @@ public class TasksController {
         return HttpRequest.BodyPublishers.ofByteArray(out.toByteArray());
     }
 
-    // ─── Добавить личную задачу ───────────────────────────────────────────────
-
     @FXML
     protected void onAddTaskClick() {
         Stage dialog = new Stage();
@@ -576,7 +561,6 @@ public class TasksController {
         }
         refreshStars.run();
 
-        // Файлы
         List<File> selectedFiles = new ArrayList<>();
         Label filesLbl = new Label("Не выбраны");
         filesLbl.setStyle("-fx-font-size: 11; -fx-text-fill: #888;");
@@ -646,7 +630,7 @@ public class TasksController {
         return lbl;
     }
 
-    /** Создаёт личную задачу. Возвращает id или null при ошибке. */
+    // возвращает id созданной задачи или null при ошибке
     private Long createPersonalTask(String title, String desc, String deadline, int importance) {
         try {
             Long pid = getOrCreatePersonalProject();
@@ -717,8 +701,6 @@ public class TasksController {
         return null;
     }
 
-    // ─── Вкладки ──────────────────────────────────────────────────────────────
-
     @FXML protected void onTabRecent()       { setTab(Tab.RECENT); }
     @FXML protected void onTabAssignedToMe() { setTab(Tab.TO_ME); }
     @FXML protected void onTabAssignedByMe() { setTab(Tab.BY_ME); }
@@ -730,8 +712,6 @@ public class TasksController {
         tabAssignedByMe.setStyle(tab == Tab.BY_ME ? ACTIVE_STYLE : INACTIVE_STYLE);
         renderTasks();
     }
-
-    // ─── Навигация ────────────────────────────────────────────────────────────
 
     @FXML protected void onNavHome()     { navigate("main-view.fxml"); }
     @FXML protected void onNavCalendar() { navigate("calendar-view.fxml"); }

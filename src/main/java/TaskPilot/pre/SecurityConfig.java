@@ -26,22 +26,6 @@ public class SecurityConfig {
         this.jwtFilter = jwtFilter;
     }
 
-    /**
-     * Главная цепочка фильтров безопасности.
-     *
-     * SessionCreationPolicy.STATELESS — сервер не хранит сессии.
-     * Каждый запрос должен содержать JWT-токен. Это стандарт для REST API.
-     *
-     * Открытые маршруты:
-     * - POST /auth/login  — получить токен (регистрация сессии)
-     * - POST /user        — создать аккаунт (регистрация пользователя)
-     * - GET /h2-console   — консоль БД для разработки
-     *
-     * Все остальные маршруты требуют валидного JWT.
-     *
-     * jwtFilter добавляется перед стандартным UsernamePasswordAuthenticationFilter —
-     * это значит наш фильтр отработает первым и установит аутентификацию.
-     */
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
@@ -53,7 +37,7 @@ public class SecurityConfig {
                         .requestMatchers("/h2-console", "/h2-console/**").permitAll() // H2 консоль
                         .requestMatchers("/auth/login").permitAll()     // вход — без токена
                         .requestMatchers("/logreg.html").permitAll()
-                        .requestMatchers("/user").permitAll()           // регистрация — без токена// временно для теста
+                        .requestMatchers("/user").permitAll()           // регистрация — без токена
                         .requestMatchers("/chat-test.html").permitAll()
                         .requestMatchers("/ws", "/ws/**", "/ws/info/**").permitAll()
                         .anyRequest().authenticated()
@@ -64,10 +48,6 @@ public class SecurityConfig {
         return http.build();
     }
 
-    /**
-     * DaoAuthenticationProvider связывает UserDetailsService и PasswordEncoder.
-     * AuthenticationManager использует его для проверки логина/пароля при входе.
-     */
     @Bean
     public DaoAuthenticationProvider authenticationProvider() {
         DaoAuthenticationProvider provider = new DaoAuthenticationProvider(userDetailsService);
@@ -75,10 +55,6 @@ public class SecurityConfig {
         return provider;
     }
 
-    /**
-     * AuthenticationManager — точка входа для аутентификации.
-     * Используется в AuthController.login() для проверки логина/пароля.
-     */
     @Bean
     public AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception {
         return config.getAuthenticationManager();

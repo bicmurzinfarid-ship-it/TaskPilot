@@ -1,8 +1,5 @@
 package TaskPilot.pre;
 
-/**
- * Квадранты матрицы Эйзенхауэра (расширенная: 3 уровня важности × 2 уровня срочности).
- */
 public enum EisenhowerQuadrant {
     URGENT_IMPORTANT,
     URGENT_SOMEWHAT_IMPORTANT,

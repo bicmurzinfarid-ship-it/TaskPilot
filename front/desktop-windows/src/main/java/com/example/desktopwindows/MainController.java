@@ -39,7 +39,7 @@ public class MainController {
 
     private final List<Long> projectIds = new ArrayList<>();
 
-    // Все пользователи, загруженные из GET /user
+    // все пользователи, загруженные из GET /user
     private final List<Long> allUserIds = new ArrayList<>();
     private final List<String> allUsernames = new ArrayList<>();
 
@@ -91,8 +91,6 @@ public class MainController {
         projectListView.setContextMenu(contextMenu);
     }
 
-    // ─── Загрузка проектов ────────────────────────────────────────────────────
-
     private void loadProjects() {
         try {
             HttpRequest req = HttpRequest.newBuilder()
@@ -106,8 +104,8 @@ public class MainController {
             }
             List<Long> newIds = new ArrayList<>();
             List<String> newNames = new ArrayList<>();
-            // Brace-depth parser: extracts each top-level JSON object correctly,
-            // immune to cross-contamination from nested member arrays
+            // brace-depth parser: корректно извлекает объекты верхнего уровня,
+            // исключает пересечение с вложенными массивами members
             String body = resp.body();
             int depth = 0, start = -1;
             for (int i = 0; i < body.length(); i++) {
@@ -132,8 +130,6 @@ public class MainController {
             Platform.runLater(() -> showError("Ошибка загрузки проектов: " + e.getMessage()));
         }
     }
-
-    // ─── Создание проекта с добавлением участников ───────────────────────────
 
     @FXML
     protected void onAddProjectClick() {
@@ -170,7 +166,6 @@ public class MainController {
         dialog.initModality(Modality.APPLICATION_MODAL);
         dialog.setResizable(false);
 
-        // ─── Шапка ───────────────────────────────────────────────────────────
         HBox header = new HBox();
         header.setStyle("-fx-background-color: #FAA030; -fx-padding: 18 16;");
         header.setAlignment(Pos.CENTER_LEFT);
@@ -184,14 +179,12 @@ public class MainController {
         closeBtn.setOnAction(e -> dialog.close());
         header.getChildren().addAll(headerLbl, hSpacer, closeBtn);
 
-        // ─── Название ────────────────────────────────────────────────────────
         TextField nameField = new TextField();
         nameField.setPromptText("Назовите проект...");
         nameField.setStyle("-fx-background-color: #E8E8E8; -fx-background-radius: 10;"
                 + " -fx-border-color: transparent; -fx-padding: 10 14; -fx-font-size: 14;");
         nameField.setMaxWidth(Double.MAX_VALUE);
 
-        // ─── Участники с чипами ───────────────────────────────────────────────
         List<Long>   selIds   = new ArrayList<>();
         List<String> selNames = new ArrayList<>();
         FlowPane chips = new FlowPane(6, 6);
@@ -252,7 +245,6 @@ public class MainController {
         membersBox.setStyle("-fx-background-color: #F0F4FF; -fx-background-radius: 10;"
                 + " -fx-padding: 10 12; -fx-border-color: #C8D4F8; -fx-border-radius: 10; -fx-border-width: 1;");
 
-        // ─── Кнопка СОЗДАТЬ ───────────────────────────────────────────────────
         Button createBtn = new Button("СОЗДАТЬ");
         createBtn.setMaxWidth(Double.MAX_VALUE);
         createBtn.setStyle("-fx-background-color: #FAA030; -fx-text-fill: white; -fx-font-weight: bold;"
@@ -319,8 +311,6 @@ public class MainController {
         }
     }
 
-    // ─── Открытие проекта ────────────────────────────────────────────────────
-
     @FXML
     protected void onOpenProjectClick() {
         int idx = projectListView.getSelectionModel().getSelectedIndex();
@@ -338,7 +328,6 @@ public class MainController {
         boolean isManager = isCreator ||
                 (details.teamLeadId() != null && details.teamLeadId().equals(Session.getUserId()));
 
-        // ─── Вкладка Информация ───────────────────────────────────────────────
         ScrollPane infoScroll = new ScrollPane();
         infoScroll.setFitToWidth(true);
         infoScroll.setStyle("-fx-background-color: #F5F0EB; -fx-background: #F5F0EB; -fx-border-color: transparent;");
@@ -346,13 +335,9 @@ public class MainController {
         VBox infoTab = buildInfoTab(projectId, details, isCreator);
         infoScroll.setContent(infoTab);
 
-        // ─── Вкладка Доска ────────────────────────────────────────────────────
         VBox boardTab = buildBoardTab(projectId, details);
-
-        // ─── Вкладка Чат ─────────────────────────────────────────────────────
         VBox chatTab = buildChatTab(projectId, projectName, details, isManager);
 
-        // ─── TabPane ──────────────────────────────────────────────────────────
         Tab tabInfo = new Tab("Информация", infoScroll);
         tabInfo.setClosable(false);
         Tab tabBoard = new Tab("Доска", boardTab);
@@ -376,7 +361,6 @@ public class MainController {
         VBox tab = new VBox(0);
         tab.setStyle("-fx-background-color: #F5F0EB;");
 
-        // ─── Тимлид ───────────────────────────────────────────────────────────
         String teamLeadName = "не назначен";
         if (details.teamLeadId() != null) {
             int tlIdx = details.memberIds().indexOf(details.teamLeadId());
@@ -385,7 +369,7 @@ public class MainController {
         tab.getChildren().add(makeInfoRow("Лидер", teamLeadName, details.teamLeadId()));
         tab.getChildren().add(new Separator());
 
-        // Управление тимлидом — только для создателя
+        // управление тимлидом — только для создателя
         if (isCreator) {
             ComboBox<String> tlCombo = new ComboBox<>();
             tlCombo.getItems().addAll(details.memberNames());
@@ -411,7 +395,7 @@ public class MainController {
                 if (i < 0) return;
                 setTeamLead(projectId, details.memberIds().get(i));
                 removeBtn.setDisable(false);
-                // обновить строку "Лидер" вверху
+                // обновить строку «Лидер» вверху
                 HBox leaderRow = (HBox) tab.getChildren().get(0);
                 Label nameLbl = (Label) ((HBox) leaderRow).getChildren().get(1);
                 nameLbl.setText(details.memberNames().get(i));
@@ -432,7 +416,6 @@ public class MainController {
             tab.getChildren().add(new Separator());
         }
 
-        // ─── Участники ────────────────────────────────────────────────────────
         for (int mi = 0; mi < details.memberNames().size(); mi++) {
             tab.getChildren().add(makeInfoRow("",
                     details.memberNames().get(mi),
@@ -440,7 +423,6 @@ public class MainController {
         }
         tab.getChildren().add(new Separator());
 
-        // ─── Описание ─────────────────────────────────────────────────────────
         Label descLabel = new Label("Описание");
         descLabel.setStyle("-fx-font-size: 14; -fx-padding: 8 12 4 12;");
         TextArea descArea = new TextArea();
@@ -478,7 +460,6 @@ public class MainController {
         VBox board = new VBox(8);
         board.setStyle("-fx-background-color: #F5F0EB; -fx-padding: 10;");
 
-        // Кнопки
         Button addTaskBtn = new Button("+ Добавить задачу");
         addTaskBtn.setStyle("-fx-background-color: #FAA030; -fx-background-radius: 20;"
                 + " -fx-font-size: 13; -fx-padding: 6 16; -fx-text-fill: white;");
@@ -556,7 +537,7 @@ public class MainController {
             } catch (Exception ignored) {}
         }
 
-        // Фон карточки: READY — зелёный, просрочено — тёмно-красный, иначе — Eisenhower
+        // фон карточки: READY — зелёный, просрочено — тёмно-красный, иначе — по матрице Эйзенхауэра
         String cardBg;
         String textColor;
         if ("READY".equals(status)) {
@@ -567,7 +548,6 @@ public class MainController {
             cardBg = boardEisenhowerColor(quadrant); textColor = "#1A1A1A";
         }
 
-        // Полоска статуса слева
         String stripeColor = switch (status) {
             case "READY"        -> "#2E7D32";
             case "DEVELOPMENT"  -> "#1565C0";
@@ -654,7 +634,6 @@ public class MainController {
         dialog.initModality(Modality.APPLICATION_MODAL);
         dialog.setResizable(false);
 
-        // ─── Шапка ───────────────────────────────────────────────────────────
         HBox header = new HBox();
         header.setStyle("-fx-background-color: #FAA030; -fx-padding: 18 16;");
         header.setAlignment(Pos.CENTER_LEFT);
@@ -668,7 +647,6 @@ public class MainController {
         closeBtn.setOnAction(e -> dialog.close());
         header.getChildren().addAll(headerLbl, hSpacer, closeBtn);
 
-        // ─── Название / Описание ──────────────────────────────────────────────
         TextField titleField = new TextField();
         titleField.setPromptText("Назовите свою задачу...");
         titleField.setStyle("-fx-background-color: #E8E8E8; -fx-background-radius: 10;"
@@ -681,7 +659,6 @@ public class MainController {
         descField.setStyle("-fx-background-color: #E8E8E8; -fx-background-radius: 10;"
                 + " -fx-border-color: transparent; -fx-padding: 10 14; -fx-font-size: 13;");
 
-        // ─── Исполнители (множественный выбор с чипами) ───────────────────────
         List<Long>   selIds   = new ArrayList<>();
         List<String> selNames = new ArrayList<>();
         FlowPane chips = new FlowPane(6, 6);
@@ -742,7 +719,6 @@ public class MainController {
         assigneesBox.setStyle("-fx-background-color: #F0F4FF; -fx-background-radius: 10;"
                 + " -fx-padding: 10 12; -fx-border-color: #C8D4F8; -fx-border-radius: 10; -fx-border-width: 1;");
 
-        // ─── Дедлайн: дата + часы + минуты ───────────────────────────────────
         DatePicker deadlinePicker = new DatePicker();
         deadlinePicker.setPromptText("Дата");
         HBox.setHgrow(deadlinePicker, Priority.ALWAYS);
@@ -761,7 +737,6 @@ public class MainController {
         HBox deadlineRow = new HBox(8, deadlinePicker, hoursSpinner, colonLbl, minsSpinner);
         deadlineRow.setAlignment(Pos.CENTER_LEFT);
 
-        // ─── Звёзды важности ─────────────────────────────────────────────────
         int[] importanceHolder = {2};
         Label[] stars = new Label[3];
         HBox starsBox = new HBox(6);
@@ -781,7 +756,6 @@ public class MainController {
         }
         refreshStars.run();
 
-        // ─── Кнопка ДОБАВИТЬ ─────────────────────────────────────────────────
         Button addBtn = new Button("ДОБАВИТЬ");
         addBtn.setMaxWidth(Double.MAX_VALUE);
         addBtn.setStyle("-fx-background-color: #FAA030; -fx-text-fill: white; -fx-font-weight: bold;"
@@ -790,7 +764,6 @@ public class MainController {
             String title = titleField.getText().trim();
             if (title.isBlank()) { showError("Название не может быть пустым"); return; }
 
-            // Дедлайн с часами и минутами
             String deadline = null;
             if (deadlinePicker.getValue() != null) {
                 deadline = deadlinePicker.getValue()
@@ -884,8 +857,6 @@ private void createProjectTask(Long projectId, String title, String description,
     }
 
     private final List<Long> taskIds = new ArrayList<>();
-
-    // ─── Управление существующим проектом ────────────────────────────────────
 
     @FXML
     protected void onManageProjectClick() {
@@ -1007,7 +978,7 @@ private void createProjectTask(Long projectId, String title, String description,
         scroll.setStyle("-fx-background-color: transparent; -fx-background: #F5F0EB;");
         VBox.setVgrow(scroll, Priority.ALWAYS);
 
-        // Загружаем историю
+        // загружаем историю через HTTP перед подключением WebSocket
         Thread.ofVirtual().start(() -> {
             try {
                 HttpRequest req = HttpRequest.newBuilder()
@@ -1048,7 +1019,6 @@ private void createProjectTask(Long projectId, String title, String description,
             }
         });
 
-        // Поле ввода
         TextField inputField = new TextField();
         inputField.setPromptText("Сообщение...");
         HBox.setHgrow(inputField, Priority.ALWAYS);
@@ -1065,7 +1035,7 @@ private void createProjectTask(Long projectId, String title, String description,
             if (projectWs != null && projectWs.isOpen()) {
                 String escaped = text.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n");
                 String json = String.format("{\"roomId\":\"%s\",\"content\":\"%s\"}", roomId, escaped);
-                projectWs.send("SEND\ndestination:/app/chat\ncontent-type:application/json\n\n" + json + " ");
+                projectWs.send("SEND\ndestination:/app/chat\ncontent-type:application/json\n\n" + json + "\u0000");
                 inputField.clear();
             } else {
                 showError("Нет подключения к чату");
@@ -1089,15 +1059,15 @@ private void createProjectTask(Long projectId, String title, String description,
             projectWs = new org.java_websocket.client.WebSocketClient(wsUri) {
                 @Override public void onOpen(org.java_websocket.handshake.ServerHandshake h) {
                     send("CONNECT\naccept-version:1.2,1.1,1.0\nheart-beat:0,0\nAuthorization:Bearer "
-                            + Session.getToken() + "\n\n ");
+                            + Session.getToken() + "\n\n\u0000");
                 }
                 @Override public void onMessage(String msg) {
                     if (msg == null || msg.isBlank()) return;
                     String[] parts = msg.split("\n\n", 2);
                     String cmd = parts[0].split("\n")[0].trim();
-                    String body = parts.length > 1 ? parts[1].replace(" ", "") : "";
+                    String body = parts.length > 1 ? parts[1].replace("\u0000", "") : "";
                     if ("CONNECTED".equals(cmd)) {
-                        send("SUBSCRIBE\nid:sub-proj\ndestination:/topic/chat/" + roomId + "\nack:auto\n\n ");
+                        send("SUBSCRIBE\nid:sub-proj\ndestination:/topic/chat/" + roomId + "\nack:auto\n\n\u0000");
                     } else if ("MESSAGE".equals(cmd) && !body.isEmpty()) {
                         String content = extractVal(body, "content");
                         String senderIdStr = extractVal(body, "senderId");
@@ -1188,7 +1158,6 @@ private void createProjectTask(Long projectId, String title, String description,
         };
         refresh.run();
 
-        // Добавить участника по поиску
         TextField addSearchField = new TextField();
         addSearchField.setPromptText("Поиск пользователя...");
         addSearchField.setMaxWidth(Double.MAX_VALUE);
@@ -1220,7 +1189,6 @@ private void createProjectTask(Long projectId, String title, String description,
                 addPopup.hide();
         });
 
-        // Удалить участника
         ComboBox<String> removeCombo = new ComboBox<>(memberNamesObs);
         removeCombo.setPromptText("Выберите участника");
         Button removeBtn = new Button("Удалить");
@@ -1231,7 +1199,6 @@ private void createProjectTask(Long projectId, String title, String description,
             refresh.run();
         });
 
-        // Назначить тимлида
         ComboBox<String> tlCombo = new ComboBox<>(memberNamesObs);
         tlCombo.setPromptText("Выберите тимлида");
         Button setTlBtn = new Button("Назначить");
@@ -1242,14 +1209,12 @@ private void createProjectTask(Long projectId, String title, String description,
             refresh.run();
         });
 
-        // Снять тимлида
         Button removeTlBtn = new Button("Снять тимлида");
         removeTlBtn.setOnAction(e -> {
             removeTeamLead(projectId);
             refresh.run();
         });
 
-        // Список текущих участников (виден сразу)
         ListView<String> membersListView = new ListView<>(memberNamesObs);
         membersListView.setPrefHeight(90);
 
@@ -1313,8 +1278,6 @@ private void createProjectTask(Long projectId, String title, String description,
         }
     }
 
-    // ─── Удаление проекта ─────────────────────────────────────────────────────
-
     @FXML
     protected void onDeleteProjectClick() {
         int idx = projectListView.getSelectionModel().getSelectedIndex();
@@ -1348,8 +1311,6 @@ private void createProjectTask(Long projectId, String title, String description,
         }
     }
 
-    // ─── Навигация ────────────────────────────────────────────────────────────
-
     @FXML protected void onNavHome() { /* уже здесь */ }
 
     @FXML
@@ -1373,8 +1334,6 @@ private void createProjectTask(Long projectId, String title, String description,
             showError("Ошибка навигации: " + e.getMessage());
         }
     }
-
-    // ─── Утилиты ──────────────────────────────────────────────────────────────
 
     private void showError(String msg) {
         Alert alert = new Alert(Alert.AlertType.ERROR, msg, ButtonType.OK);

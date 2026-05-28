@@ -4,21 +4,6 @@ import jakarta.persistence.*;
 import java.util.HashSet;
 import java.util.Set;
 
-/**
- * Проект — основная единица организации работы.
- *
- * Роли внутри проекта:
- * - Создатель (creator_id): единственный, кто может назначить тимлида
- *   и удалить проект. Автоматически становится участником при создании.
- * - Тимлид (team_lead_id): назначается создателем. Может добавлять
- *   участников и создавать/назначать задачи. Поле nullable — проект
- *   может существовать без тимлида.
- * - Участник (project_members): может видеть задачи проекта и менять
- *   статус своих задач.
- *
- * Важно: создатель и тимлид тоже являются участниками (есть в members).
- * Это упрощает проверку доступа — достаточно проверить членство.
- */
 @Entity
 @Table(name = "projects")
 public class Project {
@@ -30,32 +15,16 @@ public class Project {
     @Column(nullable = false)
     private String name;
 
-    // Кто создал проект. Не меняется никогда.
     @Column(name = "creator_id", nullable = false)
     private Long creatorId;
 
-    // Кто является тимлидом. Null = тимлид ещё не назначен.
-    // Назначить может только создатель.
+    // null = тимлид не назначен; назначает только создатель
     @Column(name = "team_lead_id")
     private Long teamLeadId;
 
     @Column(name = "chat_room_id")
     private String chatRoomId;
 
-    /**
-     * Список участников проекта.
-     *
-     * @ManyToMany — один проект имеет много участников,
-     *               один пользователь может быть в многих проектах.
-     *
-     * @JoinTable создаёт таблицу project_members:
-     *   project_id FK → projects.id
-     *   user_id    FK → users.id
-     *
-     * FetchType.LAZY — участники НЕ загружаются автоматически при каждом
-     * запросе проекта. Загружаются только когда явно обращаемся к members.
-     * Это важно для производительности.
-     */
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(
             name = "project_members",
@@ -86,8 +55,6 @@ public class Project {
     public Set<User> getMembers() { return members; }
     public void setMembers(Set<User> members) { this.members = members; }
 
-    // Вспомогательные методы для проверки ролей
-
     public boolean isCreator(Long userId) {
         return creatorId.equals(userId);
     }
@@ -96,7 +63,7 @@ public class Project {
         return teamLeadId != null && teamLeadId.equals(userId);
     }
 
-    /** Создатель или тимлид — могут управлять задачами и участниками */
+    // создатель или тимлид — могут управлять задачами и участниками
     public boolean isManager(Long userId) {
         return isCreator(userId) || isTeamLead(userId);
     }

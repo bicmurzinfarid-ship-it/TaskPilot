@@ -32,9 +32,8 @@ public class CalendarController {
     private YearMonth currentMonth = YearMonth.now();
     private final HttpClient client = HttpClient.newHttpClient();
 
-    // deadline -> список названий задач
+    // deadline -> список задач; String[]: [title, status, quadrant, deadlineFull]
     private final Map<LocalDate, List<String[]>> tasksByDate = new HashMap<>();
-    // String[0]=title, String[1]=status
 
     private static final String[] DAY_NAMES = {"Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"};
 
@@ -46,8 +45,6 @@ public class CalendarController {
         buildCalendar();
     }
 
-    // ─── Загрузка задач ───────────────────────────────────────────────────────
-
     private void loadAllTasks() {
         tasksByDate.clear();
         try {
@@ -58,7 +55,7 @@ public class CalendarController {
             String projBody = client.send(projReq, HttpResponse.BodyHandlers.ofString()).body();
 
             List<Long> projectIds = new ArrayList<>();
-            // Brace-depth parser: each top-level {...} is one project object
+            // brace-depth parser: каждый {...} верхнего уровня — один объект проекта
             int depth = 0, start = -1;
             for (int i = 0; i < projBody.length(); i++) {
                 char c = projBody.charAt(i);
@@ -107,14 +104,11 @@ public class CalendarController {
         }
     }
 
-    // ─── Построение календаря ─────────────────────────────────────────────────
-
     private void buildCalendar() {
         calendarGrid.getChildren().clear();
         calendarGrid.getColumnConstraints().clear();
         calendarGrid.getRowConstraints().clear();
 
-        // 7 равных колонок
         for (int i = 0; i < 7; i++) {
             ColumnConstraints cc = new ColumnConstraints();
             cc.setHgrow(Priority.ALWAYS);
@@ -127,7 +121,6 @@ public class CalendarController {
         monthLabel.setText(monthName.substring(0, 1).toUpperCase() + monthName.substring(1)
                 + " " + currentMonth.getYear());
 
-        // Заголовки дней
         for (int i = 0; i < 7; i++) {
             Label lbl = new Label(DAY_NAMES[i]);
             lbl.setMaxWidth(Double.MAX_VALUE);
@@ -138,7 +131,7 @@ public class CalendarController {
         }
 
         LocalDate first = currentMonth.atDay(1);
-        // getdayOfWeek().getValue(): 1=пн, 7=вс
+        // getDayOfWeek().getValue(): 1=пн, 7=вс
         int startCol = first.getDayOfWeek().getValue() - 1;
         int daysInMonth = currentMonth.lengthOfMonth();
         LocalDate today = LocalDate.now();
@@ -159,7 +152,7 @@ public class CalendarController {
             }
         }
 
-        // Высота строк
+        // первая строка — заголовок (30px), остальные растягиваются
         for (int r = 0; r <= row; r++) {
             RowConstraints rc = new RowConstraints();
             rc.setMinHeight(r == 0 ? 30 : 80);
@@ -180,7 +173,6 @@ public class CalendarController {
         cell.setStyle("-fx-border-color: #CCCCCC; -fx-border-width: 0.5;"
                 + "-fx-background-color: " + (isToday ? "#E8F0FF" : "white") + ";");
 
-        // Номер дня
         Label dayLbl = new Label(String.valueOf(day));
         dayLbl.setStyle("-fx-font-size: 12; -fx-font-weight: bold;"
                 + (isToday ? " -fx-text-fill: #2255CC;" : "")
@@ -191,7 +183,7 @@ public class CalendarController {
         }
         cell.getChildren().add(dayLbl);
 
-        // Задачи (максимум 2 штуки видно)
+        // показываем максимум 2 задачи, остальные заменяем меткой "+N ещё"
         int shown = 0;
         for (String[] task : tasks) {
             if (shown >= 2) {
@@ -220,7 +212,6 @@ public class CalendarController {
             shown++;
         }
 
-        // Клик — показать все задачи дня
         if (hasTasks) {
             cell.setOnMouseClicked(e -> showDayDialog(date, tasks));
             cell.setStyle(cell.getStyle() + " -fx-cursor: hand;");
@@ -273,8 +264,6 @@ public class CalendarController {
             default                               -> "#E0E0E0";
         };
     }
-
-    // ─── Навигация ────────────────────────────────────────────────────────────
 
     @FXML
     protected void onPrevMonth() {

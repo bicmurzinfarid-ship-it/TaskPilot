@@ -66,7 +66,6 @@ public class SettingsController {
             String initial       = finalUsername.isEmpty() ? "?" : String.valueOf(finalUsername.charAt(0)).toUpperCase();
             currentUsername = finalUsername;
 
-            // Загружаем аватар
             Image avatar = AvatarLoader.loadSync(Session.getUserId());
 
             Platform.runLater(() -> {

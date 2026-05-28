@@ -4,10 +4,6 @@ import jakarta.persistence.*;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 
-/**
- * Матрица Эйзенхауэра: срочность вычисляется по дедлайну, важность — по шкале 1-5.
- * Расчёт квадранта: getEisenhowerQuadrant().
- */
 @Entity
 @Table(name = "tasks")
 public class Task {
@@ -34,10 +30,9 @@ public class Task {
     @Column(nullable = false, columnDefinition = "varchar(255)")
     private TaskStatus status = TaskStatus.WAITING;
 
-    /** Дедлайн задачи. Срочность вычисляется по времени до дедлайна. */
     private LocalDateTime deadline;
 
-    /** Важность 1-5 (5 = максимально важно) */
+    // важность 1-3 (3 = максимально важно)
     private Integer importance;
 
     private static final int HIGH_THRESHOLD = 4;
@@ -79,10 +74,6 @@ public class Task {
     public Integer getImportance() { return importance; }
     public void setImportance(Integer importance) { this.importance = importance; }
 
-    /**
-     * Вычисляет срочность 1-5 по дедлайну относительно текущего времени.
-     * Просрочено / < 24ч → 5; 1-3 дня → 4; 3-7 дней → 3; 1-4 нед → 2; > 4 нед → 1.
-     */
     @Transient
     public Integer getUrgency() {
         if (deadline == null) return null;
@@ -95,11 +86,7 @@ public class Task {
         return 1;
     }
 
-    /**
-     * Вычисляет квадрант матрицы Эйзенхауэра.
-     * Важность: 3 = важно, 2 = не очень важно, 1 = не важно.
-     * Срочность: urgency >= 4 (≤3 дней до дедлайна).
-     */
+    // срочность >= HIGH_THRESHOLD означает ≤3 дней до дедлайна
     @Transient
     public EisenhowerQuadrant getEisenhowerQuadrant() {
         Integer urgency = getUrgency();

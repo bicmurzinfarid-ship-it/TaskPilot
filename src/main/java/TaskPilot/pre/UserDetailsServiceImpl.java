@@ -5,16 +5,6 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 
-/**
- * Реализация UserDetailsService для Spring Security.
- *
- * Spring Security вызывает loadUserByUsername когда нужно проверить
- * учётные данные пользователя (при логине через стандартный механизм)
- * или когда JwtFilter устанавливает аутентификацию в SecurityContext.
- *
- * Мы берём пользователя из нашей БД через UserRepository и оборачиваем
- * его в стандартный объект UserDetails, который понимает Spring Security.
- */
 @Service
 public class UserDetailsServiceImpl implements UserDetailsService {
 
@@ -32,12 +22,10 @@ public class UserDetailsServiceImpl implements UserDetailsService {
                 .or(() -> userRepository.findByEmailIgnoreCase(normalized))
                 .orElseThrow(() -> new UsernameNotFoundException("User not found: " + username));
 
-        // org.springframework.security.core.userdetails.User — это стандартный
-        // класс Spring Security, не наш User. Передаём username, хэш пароля
-        // и список ролей (пока пустой — роли добавим позже).
+        // org.springframework.security.core.userdetails.User — не наш User, а класс Spring Security
         return org.springframework.security.core.userdetails.User
                 .withUsername(user.getUsername())
-                .password(user.getPassword())   // уже хэшированный BCrypt пароль из БД
+                .password(user.getPassword())
                 .roles("USER")
                 .build();
     }

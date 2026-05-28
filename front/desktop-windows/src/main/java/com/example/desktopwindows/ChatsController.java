@@ -1,4 +1,4 @@
-package com.example.desktopwindows;
+﻿package com.example.desktopwindows;
 
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
@@ -71,15 +71,6 @@ public class ChatsController {
         deleteItem.setOnAction(e -> onDeleteChatClick());
 
         contextMenu.getItems().addAll(openItem, manageItem, new SeparatorMenuItem(), deleteItem);
-
-        // Добавляем меню к chatListBox (или к контейнеру со списком чатов)
-        // chatListBox.setContextMenu(contextMenu);
-
-        // Обработчик клика для выбора чата
-      //  chatListBox.setOnMouseClicked(event -> {
-            // Нужно определить какой чат выбран
-            // Для этого нужно хранить список узлов или использовать lookup
-       // });
     }
 
 
@@ -95,14 +86,12 @@ public class ChatsController {
                     .header("Authorization", "Bearer " + Session.getToken())
                     .GET().build();
 
-            // Оба запроса параллельно
             var usersFuture = client.sendAsync(usersReq, HttpResponse.BodyHandlers.ofString());
             var chatsFuture = client.sendAsync(chatsReq, HttpResponse.BodyHandlers.ofString());
 
             String usersBody = usersFuture.get().body();
             String chatsBody = chatsFuture.get().body();
 
-            // Парсим пользователей
             allUserIds.clear(); allUsernames.clear();
             Matcher m = Pattern.compile("\"id\":(\\d+),\"username\":\"([^\"]+)\"").matcher(usersBody);
             while (m.find()) {
@@ -113,7 +102,6 @@ public class ChatsController {
                 if (uname.equals(username)) currentUserId = uid;
             }
 
-            // Парсим чаты
             chatIds.clear(); chatNames.clear(); chatTypes.clear();
             Pattern blockPat = Pattern.compile("\\{[^{}]*\"nameChat\"[^{}]*\\}", Pattern.DOTALL);
             Matcher blockM = blockPat.matcher(chatsBody);
@@ -137,7 +125,7 @@ public class ChatsController {
     }
 
     private void loadCurrentUser() {
-        // Оставлен для совместимости, основная загрузка в loadUsersAndChats
+        // оставлен для совместимости, загрузка идёт в loadUsersAndChats
     }
 
     private String extractUsernameFromToken() {
@@ -152,7 +140,6 @@ public class ChatsController {
         } catch (Exception ignored) {}
         return "";
     }
-    // ─── Загрузка проектов (чаты групп) ──────────────────────────────────────
 
     private void loadChats() {
         Thread.ofVirtual().start(() -> {
@@ -184,7 +171,6 @@ public class ChatsController {
         });
     }
 
-    // ─── Рендер списка чатов ──────────────────────────────────────────────────
 
     private void renderChats() {
         chatListBox.getChildren().clear();
@@ -213,7 +199,6 @@ public class ChatsController {
     }
 
     private HBox buildGroupChatRow(int i) {
-        // Иконка группы
         Label avatar = makeAvatar("👥", "#FAA030");
 
         VBox info = new VBox(1);
@@ -274,10 +259,8 @@ public class ChatsController {
         return lbl;
     }
 
-    // ─── Открытие чата ────────────────────────────────────────────────────────
 
     private void openChat(String roomId, String roomName, boolean isGroup) {
-        // Закрываем предыдущий WebSocket
         if (currentWs != null) {
             currentWs.close();
             currentWs = null;
@@ -289,7 +272,6 @@ public class ChatsController {
         dialog.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
         dialog.getDialogPane().setPrefSize(550, 550);
 
-        // История сообщений
         VBox messageBox = new VBox(8);
         messageBox.setPadding(new Insets(10));
         ScrollPane scroll = new ScrollPane(messageBox);
@@ -299,7 +281,6 @@ public class ChatsController {
 
         loadHistory(roomId, messageBox, scroll);
 
-        // Панель управления (только для групп)
         HBox controlBar = null;
         if (isGroup) {
             controlBar = new HBox(8);
@@ -334,7 +315,6 @@ public class ChatsController {
             controlBar.getChildren().addAll(addMemberBtn, removeMemberBtn, deleteChatBtn);
         }
 
-        // Поле ввода
         TextField inputField = new TextField();
         inputField.setPromptText("Сообщение...");
         HBox.setHgrow(inputField, Priority.ALWAYS);
@@ -452,7 +432,6 @@ public class ChatsController {
         }
     }
 
-    // ─── WebSocket подключение ───────────────────────────────────────────────
 
     private void connectWebSocket(String roomId, VBox messageBox, ScrollPane scroll) {
         try {
@@ -465,7 +444,6 @@ public class ChatsController {
                 public void onOpen(ServerHandshake handshake) {
                     System.out.println("WebSocket opened");
 
-                    // 1. Отправляем CONNECT фрейм
                     String connectFrame = "CONNECT\n" +
                             "accept-version:1.2,1.1,1.0\n" +
                             "heart-beat:0,0\n" +
@@ -486,12 +464,10 @@ public class ChatsController {
                         return;
                     }
 
-                    // Разбираем STOMP фрейм
                     String[] parts = message.split("\n\n", 2);
                     String headers = parts[0];
                     String body = parts.length > 1 ? parts[1] : "";
 
-                    // Убираем null-символ из тела
                     if (body.endsWith("\u0000")) {
                         body = body.substring(0, body.length() - 1);
                     }
@@ -502,7 +478,7 @@ public class ChatsController {
                     System.out.println("Command: " + command);
                     System.out.println("Body: " + body);
 
-                    // Обрабатываем CONNECTED ответ
+                    // stomp connected — подписываемся на топик
                     if ("CONNECTED".equals(command)) {
                         connected = true;
                         System.out.println(">>> STOMP Connected successfully");
@@ -518,7 +494,6 @@ public class ChatsController {
                         return;
                     }
 
-                    // Обрабатываем MESSAGE фрейм
                     if ("MESSAGE".equals(command) && !body.isEmpty()) {
                         String content = extractJsonValue(body, "content");
                         String senderIdStr = extractJsonValue(body, "senderId");
@@ -539,7 +514,7 @@ public class ChatsController {
                             boolean isMine = senderId == currentUserId;
                             String displayName = finalSenderName != null ? finalSenderName : "Неизвестный";
 
-                            // Убираем заглушку "Сообщений пока нет"
+                            // убираем заглушку "Сообщений пока нет"
                             messageBox.getChildren().removeIf(node ->
                                     node instanceof Label lbl &&
                                             lbl.getText() != null &&
@@ -555,7 +530,7 @@ public class ChatsController {
                     }
                 }
 
-                // Вспомогательный метод для парсинга JSON значений
+                // парсит значение по ключу из json без jackson
                 private String extractJsonValue(String json, String key) {
                     String pattern = "\"" + key + "\":";
                     int keyIndex = json.indexOf(pattern);
@@ -563,7 +538,6 @@ public class ChatsController {
 
                     int start = keyIndex + pattern.length();
 
-                    // Пропускаем пробелы
                     while (start < json.length() && Character.isWhitespace(json.charAt(start))) {
                         start++;
                     }
@@ -573,7 +547,6 @@ public class ChatsController {
                     char firstChar = json.charAt(start);
 
                     if (firstChar == '"') {
-                        // Строковое значение
                         int end = start + 1;
                         while (end < json.length() && json.charAt(end) != '"') {
                             if (json.charAt(end) == '\\') end++; // пропускаем экранированные символы
@@ -581,10 +554,8 @@ public class ChatsController {
                         }
                         return json.substring(start + 1, end);
                     } else if (firstChar == '{' || firstChar == '[') {
-                        // Объект или массив - не обрабатываем для простоты
                         return null;
                     } else {
-                        // Числовое или булево значение
                         int end = start;
                         while (end < json.length() &&
                                 (Character.isDigit(json.charAt(end)) ||
@@ -692,7 +663,6 @@ public class ChatsController {
         }
     }
 
-    // ─── Добавить личную задачу ───────────────────────────────────────────────
 
     @FXML
     protected void onAddChatClick() {
@@ -713,7 +683,7 @@ public class ChatsController {
         button2.setToggleGroup(group);
         button1.setSelected(true);
 
-        // Поле названия скрыто для личных чатов
+        // название нужно только для группового чата
         titleLabel.setVisible(false);
         titleLabel.setManaged(false);
         titleField.setVisible(false);
@@ -741,7 +711,6 @@ public class ChatsController {
         ListView<String> selectedList = new ListView<>(selectedNames);
         selectedList.setPrefHeight(100);
 
-        // Для группового чата — список участников; для личного — один ComboBox
         addBtn.setOnAction(e -> {
             String selected = userCombo.getSelectionModel().getSelectedItem();
             if (selected == null) return;
@@ -772,13 +741,13 @@ public class ChatsController {
             if (btn != createBtn) return;
             boolean isPrivate = button1.isSelected();
             if (isPrivate) {
-                // Для личного чата нужен ровно один участник
+                // для личного чата нужен ровно один участник
                 String selected = userCombo.getSelectionModel().getSelectedItem();
                 if (selected == null && selectedIds.isEmpty()) {
                     showError("Выберите собеседника");
                     return;
                 }
-                // Если не нажали "Добавить" — берём текущий выбор в комбобоксе
+                // если не нажали «Добавить» — берём текущий выбор в комбобоксе
                 if (selectedIds.isEmpty() && selected != null) {
                     int i = allUsernames.indexOf(selected);
                     if (i >= 0) { selectedIds.add(allUserIds.get(i)); selectedNames.add(selected); }
@@ -804,7 +773,7 @@ public class ChatsController {
             String json = null;
 
             if (isPrivate) {
-                // Личный чат: POST /chat/private?name=...&userId=...
+                // личный чат: POST /chat/private?name=...&userId=...
                 if (memberIds.isEmpty()) {
                     showError("Для личного чата нужен собеседник");
                     return;
@@ -812,7 +781,7 @@ public class ChatsController {
                 String encodedName = java.net.URLEncoder.encode(name, java.nio.charset.StandardCharsets.UTF_8);
                 endpoint = Session.API_BASE + "/chat/private?name=" + encodedName + "&userId=" + memberIds.get(0);
             } else {
-                // Групповой чат: POST /chat/group с телом {name, members}
+                // групповой чат: POST /chat/group с телом {name, members}
                 endpoint = Session.API_BASE + "/chat/group";
                 StringBuilder membersJson = new StringBuilder();
                 for (int i = 0; i < memberIds.size(); i++) {
@@ -821,7 +790,7 @@ public class ChatsController {
                 }
                 json = "{\"name\":\"" + name.replace("\"", "\\\"") + "\",\"members\":[" + membersJson + "]}";
             }
-            System.out.println(">>> SENDING POST to: " + endpoint);  // ДОБАВЬ ЭТО
+            System.out.println(">>> SENDING POST to: " + endpoint);
             HttpRequest.BodyPublisher body = isPrivate
                     ? HttpRequest.BodyPublishers.noBody()
                     : HttpRequest.BodyPublishers.ofString(json);
@@ -834,18 +803,16 @@ public class ChatsController {
                     .build();
 
             HttpResponse<String> resp = client.send(req, HttpResponse.BodyHandlers.ofString());
-            System.out.println(">>> RESPONSE: " + resp.statusCode() + " " + resp.body());  // ДОБАВЬ ЭТО
+            System.out.println(">>> RESPONSE: " + resp.statusCode() + " " + resp.body());
             if (resp.statusCode() != 200) {
                 showError("Ошибка создания чата (" + resp.statusCode() + "): " + resp.body());
-
             }
         } catch (Exception e) {
             showError("Ошибка: " + e.getMessage());
-            e.printStackTrace();  // ДОБАВЬ ЭТО
+            e.printStackTrace();
         }
     }
 
-    // ─── Управление чатом ───────────────────────────────────────────────
 
     private void showAddMemberDialog(String roomId, VBox messageBox, ScrollPane scroll) {
         Dialog<ButtonType> dialog = new Dialog<>();
@@ -943,7 +910,6 @@ public class ChatsController {
 
     private void deleteChat(String roomId) {
         try {
-            // DELETE запрос на удаление чата (нужно добавить на сервере)
             HttpRequest req = HttpRequest.newBuilder()
                     .uri(URI.create(Session.API_BASE + "/chat/rooms/" + roomId))
                     .header("Authorization", "Bearer " + Session.getToken())
@@ -971,7 +937,6 @@ public class ChatsController {
         String roomId = chatIds.get(selectedChatIndex);
         String roomName = chatNames.get(selectedChatIndex);
 
-        // Диалог управления группой
         Dialog<ButtonType> dialog = new Dialog<>();
         dialog.setTitle("Управление группой: " + roomName);
         dialog.getDialogPane().getButtonTypes().addAll(ButtonType.CLOSE);
@@ -980,7 +945,6 @@ public class ChatsController {
         content.setPadding(new Insets(10));
         content.setPrefWidth(350);
 
-        // Добавить участника
         TextField addField = new TextField();
         addField.setPromptText("Никнейм пользователя");
         Button addBtn = new Button("Добавить участника");
@@ -999,7 +963,6 @@ public class ChatsController {
             dialog.close();
         });
 
-        // Удалить участника
         ComboBox<String> memberCombo = new ComboBox<>();
         Button removeBtn = new Button("Удалить участника");
         removeBtn.setOnAction(e -> {
@@ -1073,7 +1036,6 @@ public class ChatsController {
 
             System.out.println("DEBUG room response: " + body);
 
-            // Парсим memberIds из ответа
             Pattern memberPattern = Pattern.compile("\"memberIds\":\\[([^\\]]+)\\]");
             Matcher memberMatcher = memberPattern.matcher(body);
 
@@ -1098,7 +1060,6 @@ public class ChatsController {
             showError("Ошибка загрузки участников: " + e.getMessage());
         }
     }
-    // ─── Вкладки ─────────────────────────────────────────────────────────────
 
     @FXML protected void onTabAll()    { setTab(Tab.ALL); }
     @FXML protected void onTabDm()     { setTab(Tab.PR); }
@@ -1112,7 +1073,6 @@ public class ChatsController {
         renderChats();
     }
 
-    // ─── Навигация ────────────────────────────────────────────────────────────
 
     @FXML protected void onNavHome()     { navigate("main-view.fxml"); }
     @FXML protected void onNavCalendar() { navigate("calendar-view.fxml"); }

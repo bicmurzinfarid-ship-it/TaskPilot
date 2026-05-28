@@ -23,24 +23,6 @@ public class AuthController {
         this.jwtUtil = jwtUtil;
     }
 
-    /**
-     * Вход в систему.
-     *
-     * Запрос:  POST /auth/login
-     *          Body: { "username": "ivan", "password": "secret" }
-     *
-     * Ответ:   200 OK
-     *          Body: { "token": "eyJhbG..." }
-     *
-     *          401 Unauthorized — если пароль неверный или пользователь не найден
-     *
-     * Как работает:
-     * 1. authenticationManager.authenticate() берёт username+password
-     * 2. Внутри вызывает наш UserDetailsServiceImpl.loadUserByUsername()
-     * 3. Сравнивает введённый пароль с BCrypt-хэшем из БД
-     * 4. Если совпало — возвращаем JWT-токен
-     * 5. Если нет — бросает BadCredentialsException → 401
-     */
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody LoginRequest request) {
         String login = request.username() == null ? "" : request.username().trim();
@@ -58,9 +40,5 @@ public class AuthController {
         return ResponseEntity.ok(Map.of("token", token, "userId", user.getId()));
     }
 
-    /**
-     * DTO для тела запроса входа.
-     * Record — компактный способ объявить класс только с полями и геттерами (Java 16+).
-     */
     record LoginRequest(String username, String password) {}
 }

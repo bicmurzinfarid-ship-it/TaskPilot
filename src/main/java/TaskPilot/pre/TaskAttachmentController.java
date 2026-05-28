@@ -21,20 +21,17 @@ public class TaskAttachmentController {
         this.attachmentService = attachmentService;
     }
 
-    /** Список файлов задачи */
     @GetMapping("/task/{taskId}/attachments")
     public List<TaskAttachment> getAttachments(@PathVariable Long taskId) {
         return attachmentService.getAttachments(taskId);
     }
 
-    /** Загрузить файл к задаче (multipart/form-data, поле "file") */
     @PostMapping("/task/{taskId}/attachment")
     public TaskAttachment upload(@PathVariable Long taskId,
                                  @RequestParam("file") MultipartFile file) throws IOException {
         return attachmentService.upload(taskId, file);
     }
 
-    /** Скачать файл */
     @GetMapping("/attachment/{id}/download")
     public ResponseEntity<Resource> download(@PathVariable Long id) throws IOException {
         Resource resource = attachmentService.download(id);
@@ -48,7 +45,6 @@ public class TaskAttachmentController {
                 .body(resource);
     }
 
-    /** Удалить файл */
     @DeleteMapping("/attachment/{id}")
     public ResponseEntity<Void> delete(@PathVariable Long id) {
         attachmentService.deleteAttachment(id);
